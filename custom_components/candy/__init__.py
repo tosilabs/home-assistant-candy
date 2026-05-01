@@ -5,17 +5,30 @@ import logging
 from datetime import timedelta
 
 import async_timeout
+import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_IP_ADDRESS, CONF_PASSWORD
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from .client import CandyClient, WashingMachineStatus
+from .client.commands import pause_payload, resume_payload
 
 from .const import *
 
 _LOGGER = logging.getLogger(__name__)
+
+SEND_COMMAND_SCHEMA = vol.Schema({
+    vol.Required("entry_id"): cv.string,
+    vol.Required(ATTR_PARAMS): vol.Schema({cv.string: vol.Any(cv.string, int)}),
+})
+
+ENTRY_TARGET_SCHEMA = vol.Schema({
+    vol.Required("entry_id"): cv.string,
+})
 
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
@@ -48,10 +61,13 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     await coordinator.async_config_entry_first_refresh()
 
     hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {
-        DATA_KEY_COORDINATOR: coordinator
+        DATA_KEY_COORDINATOR: coordinator,
+        DATA_KEY_CLIENT: client,
     }
 
     await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
+
+    _async_register_services(hass)
 
     return True
 
@@ -60,6 +76,44 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        del hass.data[DOMAIN]
+        hass.data[DOMAIN].pop(entry.entry_id, None)
+        if not hass.data[DOMAIN]:
+            for service in (SERVICE_SEND_COMMAND, SERVICE_PAUSE, SERVICE_RESUME):
+                hass.services.async_remove(DOMAIN, service)
+            del hass.data[DOMAIN]
 
     return unload_ok
+
+
+def _get_client(hass: HomeAssistant, entry_id: str) -> CandyClient:
+    entry_data = hass.data.get(DOMAIN, {}).get(entry_id)
+    if entry_data is None:
+        raise HomeAssistantError(f"No Candy config entry with id {entry_id}")
+    return entry_data[DATA_KEY_CLIENT]
+
+
+def _async_register_services(hass: HomeAssistant) -> None:
+    if hass.services.has_service(DOMAIN, SERVICE_SEND_COMMAND):
+        return
+
+    async def handle_send_command(call: ServiceCall) -> None:
+        client = _get_client(hass, call.data["entry_id"])
+        await client.send_command(call.data[ATTR_PARAMS])
+
+    async def handle_pause(call: ServiceCall) -> None:
+        client = _get_client(hass, call.data["entry_id"])
+        await client.send_command(pause_payload())
+
+    async def handle_resume(call: ServiceCall) -> None:
+        client = _get_client(hass, call.data["entry_id"])
+        await client.send_command(resume_payload())
+
+    hass.services.async_register(
+        DOMAIN, SERVICE_SEND_COMMAND, handle_send_command, schema=SEND_COMMAND_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_PAUSE, handle_pause, schema=ENTRY_TARGET_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_RESUME, handle_resume, schema=ENTRY_TARGET_SCHEMA
+    )

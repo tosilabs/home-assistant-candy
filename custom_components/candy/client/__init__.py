@@ -1,7 +1,8 @@
 import json
 import logging
 from json import JSONDecodeError
-from typing import Optional, Tuple, Union
+from typing import Mapping, Optional, Tuple, Union
+from urllib.parse import urlencode
 
 import aiohttp
 import backoff
@@ -64,6 +65,22 @@ class CandyClient:
             return status
 
 
+    async def send_command(self, params: Mapping[str, Union[str, int]]) -> str:
+        """
+        Send a write command to the device's http-write.json endpoint.
+
+        Parameters are passed as URL query string. The `encrypted` flag is added
+        automatically based on the client config. The device usually responds with
+        a short acknowledgement (e.g. "OK"), which is returned as raw text.
+        """
+        url = _write_url(self.device_ip, self.use_encryption, params)
+        _LOGGER.debug("Sending command to %s", url)
+        async with _LIMITER, self.session.get(url) as resp:
+            text = await resp.text()
+            _LOGGER.debug("Command response: %s", text)
+            return text
+
+
 async def detect_encryption(session: aiohttp.ClientSession, device_ip: str) -> Tuple[Encryption, Optional[str]]:
     # noinspection PyBroadException
     try:
@@ -98,3 +115,8 @@ async def detect_encryption(session: aiohttp.ClientSession, device_ip: str) -> T
 
 def _status_url(device_ip: str, use_encryption: bool) -> str:
     return f"http://{device_ip}/http-read.json?encrypted={1 if use_encryption else 0}"
+
+
+def _write_url(device_ip: str, use_encryption: bool, params: Mapping[str, Union[str, int]]) -> str:
+    query = {**params, "encrypted": 1 if use_encryption else 0}
+    return f"http://{device_ip}/http-write.json?{urlencode(query)}"

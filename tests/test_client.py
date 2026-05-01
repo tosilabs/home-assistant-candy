@@ -127,6 +127,41 @@ async def test_status_encryption_with_key(hass, aioclient_mock):
     assert isinstance(status, DishwasherStatus)
 
 
+async def test_send_command_unencrypted(hass, aioclient_mock):
+    aioclient_mock.get(
+        f"http://{TEST_IP}/http-write.json",
+        text="OK"
+    )
+
+    client = CandyClient(
+        async_get_clientsession(hass), device_ip=TEST_IP, encryption_key="", use_encryption=False
+    )
+    response = await client.send_command({"Pause": 1, "WiFiStatus": 1})
+
+    assert response == "OK"
+    assert len(aioclient_mock.mock_calls) == 1
+    method, url, *_ = aioclient_mock.mock_calls[0]
+    assert method == "GET"
+    query = dict(url.query)
+    assert query == {"Pause": "1", "WiFiStatus": "1", "encrypted": "0"}
+
+
+async def test_send_command_encrypted(hass, aioclient_mock):
+    aioclient_mock.get(
+        f"http://{TEST_IP}/http-write.json",
+        text="OK"
+    )
+
+    client = CandyClient(
+        async_get_clientsession(hass), device_ip=TEST_IP, encryption_key="abc", use_encryption=True
+    )
+    await client.send_command({"Pause": 0})
+
+    method, url, *_ = aioclient_mock.mock_calls[0]
+    assert method == "GET"
+    assert dict(url.query) == {"Pause": "0", "encrypted": "1"}
+
+
 async def test_status_encryption_without_key(hass, aioclient_mock):
     aioclient_mock.get(
         f"http://{TEST_IP}/http-read.json",

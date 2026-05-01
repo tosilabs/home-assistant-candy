@@ -1,0 +1,54 @@
+send_command:
+  name: Send raw command
+  description: >
+    Send arbitrary key/value parameters to the device's http-write.json endpoint.
+    Use this for model-specific commands (start program, change temperature, set
+    spin speed, etc.) when you know the parameter names accepted by your device.
+  fields:
+    entry_id:
+      name: Config entry ID
+      description: The config entry id of the Candy device to target.
+      required: true
+      example: 6f7d4f2e3a8b4c0d9e1f2a3b4c5d6e7f
+      selector:
+        config_entry:
+          integration: candy
+    params:
+      name: Parameters
+      description: Map of query parameters to send to the device.
+      required: true
+      example:
+        WashProgr: 13
+        Temp: 40
+        SpinSpeed: 8
+        WiFiStatus: 1
+      selector:
+        object:
+
+pause:
+  name: Pause cycle
+  description: >
+    Pause the running cycle (sends Pause=1, WiFiStatus=1). May not work on every
+    model — falls back to send_command for custom payloads.
+  fields:
+    entry_id:
+      name: Config entry ID
+      description: The config entry id of the Candy device to target.
+      required: true
+      selector:
+        config_entry:
+          integration: candy
+
+resume:
+  name: Resume cycle
+  description: >
+    Resume a paused cycle (sends Pause=0, WiFiStatus=1). May not work on every
+    model — falls back to send_command for custom payloads.
+  fields:
+    entry_id:
+      name: Config entry ID
+      description: The config entry id of the Candy device to target.
+      required: true
+      selector:
+        config_entry:
+          integration: candy
