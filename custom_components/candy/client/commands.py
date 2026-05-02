@@ -74,3 +74,62 @@ def washing_machine_resume() -> str:
     Best-effort guess; mirrors pause with Pa=0.
     """
     return "Write=1&Pa=0"
+
+
+# -----------------------------------------------------------------------------
+# Tumble dryer command builders.
+#
+# These are best-effort, NOT verified against captured commands. They mirror
+# the washing machine pattern but use the field names observed in tumble dryer
+# status responses: Pr (vs PrNm), DryLev, DryingManagerLevel, Rapido,
+# RecipeId=NULL (string, not 0). If something doesn't work for your model,
+# capture a real command from the official app and replay via send_raw_command.
+# -----------------------------------------------------------------------------
+
+def tumble_dryer_start(
+    program: int,
+    dry_level: Optional[int] = None,
+    dry_level_target: Optional[int] = None,
+    rapid: int = 0,
+    pause: int = 0,
+    selection: int = 0,
+    check_up_state: int = 0,
+) -> str:
+    """
+    Best-effort START plaintext for Candy tumble dryers.
+
+    Inferred template:
+        Write=1&Pa=0&Sel=0&Pr=<N>&StSt=1[&DryLev=<L>][&DryingManagerLevel=<L>]
+        &Rapido=0&RecipeId=NULL&CheckUpState=0
+    """
+    parts = [
+        "Write=1",
+        f"Pa={pause}",
+        f"Sel={selection}",
+        f"Pr={program}",
+        "StSt=1",
+    ]
+    if dry_level is not None:
+        parts.append(f"DryLev={dry_level}")
+    if dry_level_target is not None:
+        parts.append(f"DryingManagerLevel={dry_level_target}")
+    parts.append(f"Rapido={rapid}")
+    parts.append("RecipeId=NULL")
+    parts.append(f"CheckUpState={check_up_state}")
+    return "&".join(parts)
+
+
+def tumble_dryer_stop(program: int) -> str:
+    """
+    Best-effort STOP plaintext for Candy tumble dryers.
+    Inferred from washing machine STOP pattern with `Pr` instead of `PrNm`.
+    """
+    return f"Write=1&StSt=0&DelVal=0&Pr={program}"
+
+
+def tumble_dryer_pause() -> str:
+    return "Write=1&Pa=1"
+
+
+def tumble_dryer_resume() -> str:
+    return "Write=1&Pa=0"

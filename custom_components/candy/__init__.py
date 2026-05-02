@@ -16,9 +16,11 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from .client import CandyClient
-from .client.commands import (washing_machine_pause, washing_machine_resume,
+from .client.commands import (tumble_dryer_pause, tumble_dryer_resume,
+                              tumble_dryer_start, tumble_dryer_stop,
+                              washing_machine_pause, washing_machine_resume,
                               washing_machine_start, washing_machine_stop)
-from .client.model import WashingMachineStatus
+from .client.model import TumbleDryerStatus, WashingMachineStatus
 
 from .const import *
 
@@ -65,6 +67,19 @@ WM_START_SCHEMA = vol.Schema({
 })
 
 WM_STOP_SCHEMA = vol.Schema({
+    vol.Required("entry_id"): cv.string,
+    vol.Optional(ATTR_PROGRAM): vol.All(int, vol.Range(min=0)),
+})
+
+TD_START_SCHEMA = vol.Schema({
+    vol.Required("entry_id"): cv.string,
+    vol.Required(ATTR_PROGRAM): vol.All(int, vol.Range(min=0)),
+    vol.Optional(ATTR_DRY_LEVEL): vol.All(int, vol.Range(min=0)),
+    vol.Optional(ATTR_DRY_LEVEL_TARGET): vol.All(int, vol.Range(min=0)),
+    vol.Optional(ATTR_RAPID, default=0): vol.All(int, vol.Range(min=0, max=1)),
+})
+
+TD_STOP_SCHEMA = vol.Schema({
     vol.Required("entry_id"): cv.string,
     vol.Optional(ATTR_PROGRAM): vol.All(int, vol.Range(min=0)),
 })
@@ -124,7 +139,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             for service in (SERVICE_SEND_COMMAND, SERVICE_SEND_RAW_COMMAND,
                             SERVICE_SEND_PLAINTEXT_COMMAND, SERVICE_DECRYPT_DATA,
                             SERVICE_WM_START, SERVICE_WM_STOP,
-                            SERVICE_WM_PAUSE, SERVICE_WM_RESUME):
+                            SERVICE_WM_PAUSE, SERVICE_WM_RESUME,
+                            SERVICE_TD_START, SERVICE_TD_STOP,
+                            SERVICE_TD_PAUSE, SERVICE_TD_RESUME):
                 hass.services.async_remove(DOMAIN, service)
             del hass.data[DOMAIN]
 
@@ -199,6 +216,33 @@ def _async_register_services(hass: HomeAssistant) -> None:
     async def handle_wm_resume(call: ServiceCall) -> None:
         await _send_plaintext(hass, call.data["entry_id"], washing_machine_resume())
 
+    async def handle_td_start(call: ServiceCall) -> None:
+        plaintext = tumble_dryer_start(
+            program=call.data[ATTR_PROGRAM],
+            dry_level=call.data.get(ATTR_DRY_LEVEL),
+            dry_level_target=call.data.get(ATTR_DRY_LEVEL_TARGET),
+            rapid=call.data.get(ATTR_RAPID, 0),
+        )
+        await _send_plaintext(hass, call.data["entry_id"], plaintext)
+
+    async def handle_td_stop(call: ServiceCall) -> None:
+        program = call.data.get(ATTR_PROGRAM)
+        if program is None:
+            entry_data = _get_entry_data(hass, call.data["entry_id"])
+            status = entry_data[DATA_KEY_COORDINATOR].data
+            if not isinstance(status, TumbleDryerStatus):
+                raise HomeAssistantError(
+                    "Cannot determine current program — pass `program:` explicitly"
+                )
+            program = status.program
+        await _send_plaintext(hass, call.data["entry_id"], tumble_dryer_stop(program))
+
+    async def handle_td_pause(call: ServiceCall) -> None:
+        await _send_plaintext(hass, call.data["entry_id"], tumble_dryer_pause())
+
+    async def handle_td_resume(call: ServiceCall) -> None:
+        await _send_plaintext(hass, call.data["entry_id"], tumble_dryer_resume())
+
     hass.services.async_register(
         DOMAIN, SERVICE_SEND_COMMAND, handle_send_command, schema=SEND_COMMAND_SCHEMA
     )
@@ -222,4 +266,16 @@ def _async_register_services(hass: HomeAssistant) -> None:
     )
     hass.services.async_register(
         DOMAIN, SERVICE_WM_RESUME, handle_wm_resume, schema=ENTRY_ONLY_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_TD_START, handle_td_start, schema=TD_START_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_TD_STOP, handle_td_stop, schema=TD_STOP_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_TD_PAUSE, handle_td_pause, schema=ENTRY_ONLY_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_TD_RESUME, handle_td_resume, schema=ENTRY_ONLY_SCHEMA
     )

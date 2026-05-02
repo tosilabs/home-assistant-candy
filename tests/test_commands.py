@@ -1,5 +1,9 @@
 """Tests for plaintext command builders."""
-from custom_components.candy.client.commands import (washing_machine_pause,
+from custom_components.candy.client.commands import (tumble_dryer_pause,
+                                                     tumble_dryer_resume,
+                                                     tumble_dryer_start,
+                                                     tumble_dryer_stop,
+                                                     washing_machine_pause,
                                                      washing_machine_resume,
                                                      washing_machine_start,
                                                      washing_machine_stop)
@@ -36,3 +40,25 @@ def test_wm_stop():
 def test_wm_pause_resume():
     assert washing_machine_pause() == "Write=1&Pa=1"
     assert washing_machine_resume() == "Write=1&Pa=0"
+
+
+def test_td_start_minimal():
+    assert tumble_dryer_start(program=2) == (
+        "Write=1&Pa=0&Sel=0&Pr=2&StSt=1&Rapido=0&RecipeId=NULL&CheckUpState=0"
+    )
+
+
+def test_td_start_with_dry_levels():
+    assert tumble_dryer_start(program=2, dry_level=2, dry_level_target=3) == (
+        "Write=1&Pa=0&Sel=0&Pr=2&StSt=1&DryLev=2&DryingManagerLevel=3"
+        "&Rapido=0&RecipeId=NULL&CheckUpState=0"
+    )
+
+
+def test_td_stop():
+    assert tumble_dryer_stop(program=2) == "Write=1&StSt=0&DelVal=0&Pr=2"
+
+
+def test_td_pause_resume():
+    assert tumble_dryer_pause() == "Write=1&Pa=1"
+    assert tumble_dryer_resume() == "Write=1&Pa=0"

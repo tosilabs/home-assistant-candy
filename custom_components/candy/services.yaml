@@ -179,6 +179,98 @@ washing_machine_resume:
         config_entry:
           integration: candy
 
+tumble_dryer_start:
+  name: Tumble dryer — Start program (EXPERIMENTAL)
+  description: >
+    Best-effort START for tumble dryers. NOT yet verified against captured
+    commands — uses parameter names inferred from the dryer status response
+    (Pr, DryLev, DryingManagerLevel, Rapido, RecipeId=NULL).
+    Inferred plaintext:
+      Write=1&Pa=0&Sel=0&Pr=N&StSt=1[&DryLev=L][&DryingManagerLevel=L]
+      &Rapido=0&RecipeId=NULL&CheckUpState=0
+  fields:
+    entry_id:
+      name: Config entry ID
+      required: true
+      selector:
+        config_entry:
+          integration: candy
+    program:
+      name: Program (Pr)
+      required: true
+      example: 2
+      selector:
+        number:
+          min: 0
+          max: 30
+          mode: box
+    dry_level:
+      name: Dry level (DryLev)
+      example: 2
+      selector:
+        number:
+          min: 0
+          max: 5
+          mode: box
+    dry_level_target:
+      name: Dry level target (DryingManagerLevel)
+      example: 2
+      selector:
+        number:
+          min: 0
+          max: 5
+          mode: box
+    rapid:
+      name: Rapid (Rapido)
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 1
+          mode: box
+
+tumble_dryer_stop:
+  name: Tumble dryer — Stop (EXPERIMENTAL)
+  description: >
+    Best-effort STOP. Inferred plaintext: Write=1&StSt=0&DelVal=0&Pr=N
+  fields:
+    entry_id:
+      name: Config entry ID
+      required: true
+      selector:
+        config_entry:
+          integration: candy
+    program:
+      name: Program
+      description: Optional override; defaults to the current program.
+      selector:
+        number:
+          min: 0
+          max: 30
+          mode: box
+
+tumble_dryer_pause:
+  name: Tumble dryer — Pause (EXPERIMENTAL)
+  description: Sends Write=1&Pa=1. Best-effort.
+  fields:
+    entry_id:
+      name: Config entry ID
+      required: true
+      selector:
+        config_entry:
+          integration: candy
+
+tumble_dryer_resume:
+  name: Tumble dryer — Resume (EXPERIMENTAL)
+  description: Sends Write=1&Pa=0. Best-effort.
+  fields:
+    entry_id:
+      name: Config entry ID
+      required: true
+      selector:
+        config_entry:
+          integration: candy
+
 decrypt_data:
   name: Decrypt captured hex blob
   description: >

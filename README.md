@@ -38,6 +38,8 @@ Reverse-engineered from real captured commands:
 
 ### High-level services
 
+#### Washing machine
+
 ```yaml
 # Start program 13 at 40°C, spin 15
 service: candy.washing_machine_start
@@ -62,6 +64,34 @@ service: candy.washing_machine_pause
 data:
   entry_id: <your_candy_config_entry_id>
 ```
+
+#### Tumble dryer (EXPERIMENTAL)
+
+The tumble dryer command builders are inferred from status field names (`Pr`, `DryLev`, `DryingManagerLevel`, `Rapido`, `RecipeId=NULL`) rather than verified against captured commands. Test against your machine and tune via `candy.send_plaintext_command` if a parameter is wrong.
+
+```yaml
+service: candy.tumble_dryer_start
+data:
+  entry_id: <your_candy_config_entry_id>
+  program: 2
+  dry_level: 2
+  dry_level_target: 3
+```
+
+```yaml
+service: candy.tumble_dryer_stop
+data:
+  entry_id: <your_candy_config_entry_id>
+```
+
+Inferred plaintext templates:
+
+| Action | Template |
+|---|---|
+| Start | `Write=1&Pa=0&Sel=0&Pr=<N>&StSt=1[&DryLev=<L>][&DryingManagerLevel=<L>]&Rapido=0&RecipeId=NULL&CheckUpState=0` |
+| Stop | `Write=1&StSt=0&DelVal=0&Pr=<N>` |
+| Pause | `Write=1&Pa=1` |
+| Resume | `Write=1&Pa=0` |
 
 ### Low-level services
 
