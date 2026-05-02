@@ -1,7 +1,7 @@
 """Constants for the Candy integration."""
 
 DOMAIN = "candy"
-PLATFORMS = ["sensor", "button"]
+PLATFORMS = ["sensor"]
 
 DATA_KEY_COORDINATOR = "coordinator"
 DATA_KEY_CLIENT = "client"
@@ -10,9 +10,12 @@ CONF_INTEGRATION_TITLE = "Candy"
 CONF_KEY_USE_ENCRYPTION = "use_encryption"
 
 SERVICE_SEND_COMMAND = "send_command"
-SERVICE_PAUSE = "pause"
-SERVICE_RESUME = "resume"
+SERVICE_SEND_RAW_COMMAND = "send_raw_command"
+SERVICE_SEND_PLAINTEXT_COMMAND = "send_plaintext_command"
+SERVICE_DECRYPT_DATA = "decrypt_data"
 ATTR_PARAMS = "params"
+ATTR_DATA = "data"
+ATTR_PLAINTEXT = "plaintext"
 
 UNIQUE_ID_WASHING_MACHINE = "{0}-washing_machine"
 UNIQUE_ID_WASH_CYCLE_STATUS = "{0}-wash_cycle_status"

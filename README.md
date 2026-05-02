@@ -19,37 +19,49 @@ Custom component for [Home Assistant](https://homeassistant.io) that integrates 
 
 ## Write commands
 
-In addition to read-only sensors, the integration exposes a few ways to send commands back to the device:
+In addition to read-only sensors, the integration exposes a few services to send commands back to the device. The write protocol is **not officially documented**, and on most modern Candy/Hoover devices the command is XOR-encrypted with the same key used for reading status, then hex-encoded and sent as the `data` parameter:
 
-### Buttons
-
-Each appliance device gets two buttons in Home Assistant:
-- `button.pause` — pauses the running cycle (`Pause=1`, `WiFiStatus=1`)
-- `button.resume` — resumes a paused cycle (`Pause=0`, `WiFiStatus=1`)
-
-These payloads are based on community reverse-engineering and may not work on every model.
+```
+http://<ip>/http-write.json?encrypted=1&data=<hex>
+```
 
 ### Services
 
-- `candy.pause` — same as the Pause button, but as a service.
-- `candy.resume` — same as the Resume button, but as a service.
-- `candy.send_command` — send arbitrary key/value parameters to `http-write.json`. Use this when you know the parameter names accepted by your specific model (e.g. start a wash program, change temperature, set spin speed).
+| Service | When to use |
+|---|---|
+| `candy.send_raw_command` | You have a captured hex blob (e.g. from mitmproxy or an old config) and want to replay it. |
+| `candy.send_plaintext_command` | You know the plaintext command format. The integration XOR-encrypts it with your device key automatically. |
+| `candy.decrypt_data` | You have a captured hex blob and want to learn its plaintext format. The plaintext is logged at WARNING level in the Home Assistant log. |
+| `candy.send_command` | Legacy: sends key/value pairs as plain URL params (only works on non-encrypted models). |
 
-Example: start a wash program (parameter names vary by model — these are illustrative):
+#### Example: replay a captured hex command
 
 ```yaml
-service: candy.send_command
+service: candy.send_raw_command
 data:
   entry_id: <your_candy_config_entry_id>
-  params:
-    WashProgr: 13
-    Temp: 40
-    SpinSpeed: 8
-    OpzProg: p
-    WiFiStatus: 1
+  data: "3F150810065C5F423F153B185E5E45270D0B2C005E5148341E2F055151"
 ```
 
-The write protocol is **not officially documented**. If a built-in command doesn't work for your appliance, capture the requests sent by the official Candy/Hoover/hOn app (e.g. with mitmproxy) and replay the parameters via `candy.send_command`.
+#### Example: send a plaintext command (auto-encrypted)
+
+```yaml
+service: candy.send_plaintext_command
+data:
+  entry_id: <your_candy_config_entry_id>
+  plaintext: "WashProgr=13&Temp=40&WiFiStatus=1"
+```
+
+#### Example: decrypt a captured hex blob to learn its format
+
+```yaml
+service: candy.decrypt_data
+data:
+  entry_id: <your_candy_config_entry_id>
+  data: "3F150810065C5F423F153B185E5E45270D0B2C005E5148341E2F055151"
+```
+
+Then check the Home Assistant log for a line like `candy.decrypt_data result: ...` containing the plaintext.
 
 ## Installation
 

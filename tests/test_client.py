@@ -162,6 +162,44 @@ async def test_send_command_encrypted(hass, aioclient_mock):
     assert dict(url.query) == {"Pause": "0", "encrypted": "1"}
 
 
+async def test_send_encrypted_data_uses_data_param(hass, aioclient_mock):
+    aioclient_mock.get(
+        f"http://{TEST_IP}/http-write.json",
+        text="OK"
+    )
+
+    client = CandyClient(
+        async_get_clientsession(hass), device_ip=TEST_IP, encryption_key="abc", use_encryption=True
+    )
+    hex_blob = "3F150810065C5F423F153B185E5E45270D0B2C005E5148341E2F055151"
+    response = await client.send_encrypted_data(hex_blob)
+
+    assert response == "OK"
+    assert len(aioclient_mock.mock_calls) == 1
+    _, url, *_ = aioclient_mock.mock_calls[0]
+    assert dict(url.query) == {"encrypted": "1", "data": hex_blob}
+
+
+async def test_encrypt_decrypt_roundtrip(hass):
+    client = CandyClient(
+        async_get_clientsession(hass), device_ip=TEST_IP, encryption_key="abcdef0123456789", use_encryption=True
+    )
+    plaintext = "WashProgr=13&Temp=40&WiFiStatus=1"
+    hex_blob = client.encrypt_command(plaintext)
+    # Encryption is XOR, so decrypting the hex blob with the same key returns the plaintext
+    assert client.decrypt_data(hex_blob) == plaintext
+
+
+async def test_decrypt_data_no_key_raises(hass):
+    client = CandyClient(
+        async_get_clientsession(hass), device_ip=TEST_IP, encryption_key="", use_encryption=True
+    )
+    with pytest.raises(ValueError):
+        client.decrypt_data("3F15081006")
+    with pytest.raises(ValueError):
+        client.encrypt_command("Pause=1")
+
+
 async def test_status_encryption_without_key(hass, aioclient_mock):
     aioclient_mock.get(
         f"http://{TEST_IP}/http-read.json",

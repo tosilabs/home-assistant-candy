@@ -67,11 +67,12 @@ class CandyClient:
 
     async def send_command(self, params: Mapping[str, Union[str, int]]) -> str:
         """
-        Send a write command to the device's http-write.json endpoint.
+        Send a write command to the device's http-write.json endpoint as plain
+        URL parameters (used by some non-encrypted models).
 
-        Parameters are passed as URL query string. The `encrypted` flag is added
-        automatically based on the client config. The device usually responds with
-        a short acknowledgement (e.g. "OK"), which is returned as raw text.
+        For encrypted models, prefer `send_encrypted_data` which sends a
+        pre-encrypted hex blob as the `data` parameter — that's what the official
+        Candy / hOn app uses on the wire.
         """
         url = _write_url(self.device_ip, self.use_encryption, params)
         _LOGGER.debug("Sending command to %s", url)
@@ -79,6 +80,47 @@ class CandyClient:
             text = await resp.text()
             _LOGGER.debug("Command response: %s", text)
             return text
+
+    async def send_encrypted_data(self, hex_data: str) -> str:
+        """
+        Send a pre-encrypted command blob to http-write.json.
+
+        The official Candy / hOn app sends commands like:
+            http://<ip>/http-write.json?encrypted=1&data=<hex>
+        where <hex> is the command plaintext XOR-encrypted with the device key,
+        then hex-encoded. This method does no encryption itself — pass the hex
+        string you've captured (or built via encrypt_command).
+        """
+        url = _write_data_url(self.device_ip, hex_data)
+        _LOGGER.debug("Sending raw command to %s", url)
+        async with _LIMITER, self.session.get(url) as resp:
+            text = await resp.text()
+            _LOGGER.debug("Command response: %s", text)
+            return text
+
+    def encrypt_command(self, plaintext: str) -> str:
+        """
+        XOR-encrypt a plaintext command with the configured key and return hex.
+
+        Only meaningful when `use_encryption` is True and `encryption_key` is set.
+        Useful for users who have reverse-engineered the plaintext format of
+        their device's commands.
+        """
+        if not self.encryption_key:
+            raise ValueError("encrypt_command requires a configured encryption key")
+        encrypted = decrypt(self.encryption_key.encode(), plaintext.encode())
+        return encrypted.hex().upper()
+
+    def decrypt_data(self, hex_data: str) -> str:
+        """
+        XOR-decrypt a captured hex blob with the configured key and return the
+        plaintext string. Useful for inspecting commands captured from the
+        official app (or saved snippets) to learn the plaintext command format.
+        """
+        if not self.encryption_key:
+            raise ValueError("decrypt_data requires a configured encryption key")
+        plaintext = decrypt(self.encryption_key.encode(), bytes.fromhex(hex_data))
+        return plaintext.decode("utf-8", errors="replace")
 
 
 async def detect_encryption(session: aiohttp.ClientSession, device_ip: str) -> Tuple[Encryption, Optional[str]]:
@@ -120,3 +162,7 @@ def _status_url(device_ip: str, use_encryption: bool) -> str:
 def _write_url(device_ip: str, use_encryption: bool, params: Mapping[str, Union[str, int]]) -> str:
     query = {**params, "encrypted": 1 if use_encryption else 0}
     return f"http://{device_ip}/http-write.json?{urlencode(query)}"
+
+
+def _write_data_url(device_ip: str, hex_data: str) -> str:
+    return f"http://{device_ip}/http-write.json?encrypted=1&data={hex_data}"

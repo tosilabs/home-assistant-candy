@@ -1,15 +1,14 @@
 send_command:
-  name: Send raw command
+  name: Send command (URL params)
   description: >
-    Send arbitrary key/value parameters to the device's http-write.json endpoint.
-    Use this for model-specific commands (start program, change temperature, set
-    spin speed, etc.) when you know the parameter names accepted by your device.
+    Send key/value parameters as a URL query string to the device's
+    http-write.json endpoint. Works only on models that accept plain query-string
+    commands. Most encrypted models expect send_raw_command instead.
   fields:
     entry_id:
       name: Config entry ID
       description: The config entry id of the Candy device to target.
       required: true
-      example: 6f7d4f2e3a8b4c0d9e1f2a3b4c5d6e7f
       selector:
         config_entry:
           integration: candy
@@ -20,16 +19,16 @@ send_command:
       example:
         WashProgr: 13
         Temp: 40
-        SpinSpeed: 8
         WiFiStatus: 1
       selector:
         object:
 
-pause:
-  name: Pause cycle
+send_raw_command:
+  name: Send raw (pre-encrypted) command
   description: >
-    Pause the running cycle (sends Pause=1, WiFiStatus=1). May not work on every
-    model — falls back to send_command for custom payloads.
+    Send a pre-encrypted hex blob to http-write.json as the `data` parameter.
+    This is the format the official Candy/hOn app uses for encrypted devices.
+    Use this with hex blobs you have captured (e.g. from mitmproxy).
   fields:
     entry_id:
       name: Config entry ID
@@ -38,12 +37,20 @@ pause:
       selector:
         config_entry:
           integration: candy
+    data:
+      name: Hex data
+      description: Pre-encrypted command, hex-encoded (no `0x` prefix).
+      required: true
+      example: "3F150810065C5F423F153B185E5E45270D0B2C005E5148341E2F055151"
+      selector:
+        text:
 
-resume:
-  name: Resume cycle
+send_plaintext_command:
+  name: Send plaintext command (auto-encrypts)
   description: >
-    Resume a paused cycle (sends Pause=0, WiFiStatus=1). May not work on every
-    model — falls back to send_command for custom payloads.
+    XOR-encrypt the given plaintext with the configured device key, hex-encode
+    it, and send as the `data` parameter to http-write.json. Use this once you
+    have reverse-engineered the plaintext command format for your device.
   fields:
     entry_id:
       name: Config entry ID
@@ -52,3 +59,32 @@ resume:
       selector:
         config_entry:
           integration: candy
+    plaintext:
+      name: Plaintext command
+      description: The plaintext command string to encrypt and send.
+      required: true
+      example: "WashProgr=13&Temp=40&WiFiStatus=1"
+      selector:
+        text:
+
+decrypt_data:
+  name: Decrypt captured hex blob
+  description: >
+    XOR-decrypt the given hex blob with the configured device key and log the
+    plaintext at warning level (visible in the Home Assistant log). Helpful for
+    learning your device's plaintext command format from a captured blob.
+  fields:
+    entry_id:
+      name: Config entry ID
+      description: The config entry id of the Candy device whose key to use.
+      required: true
+      selector:
+        config_entry:
+          integration: candy
+    data:
+      name: Hex data
+      description: Encrypted command, hex-encoded.
+      required: true
+      example: "3F150810065C5F423F153B185E5E45270D0B2C005E5148341E2F055151"
+      selector:
+        text:

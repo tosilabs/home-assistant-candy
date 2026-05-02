@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import timedelta
 
 import async_timeout
@@ -14,20 +15,40 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from .client import CandyClient, WashingMachineStatus
-from .client.commands import pause_payload, resume_payload
+from .client import CandyClient
 
 from .const import *
 
 _LOGGER = logging.getLogger(__name__)
+
+_HEX_RE = re.compile(r"^[0-9a-fA-F]+$")
+
+
+def _hex_string(value: object) -> str:
+    s = cv.string(value).strip()
+    if len(s) % 2 != 0 or not _HEX_RE.match(s):
+        raise vol.Invalid("data must be an even-length hex string")
+    return s
+
 
 SEND_COMMAND_SCHEMA = vol.Schema({
     vol.Required("entry_id"): cv.string,
     vol.Required(ATTR_PARAMS): vol.Schema({cv.string: vol.Any(cv.string, int)}),
 })
 
-ENTRY_TARGET_SCHEMA = vol.Schema({
+SEND_RAW_COMMAND_SCHEMA = vol.Schema({
     vol.Required("entry_id"): cv.string,
+    vol.Required(ATTR_DATA): _hex_string,
+})
+
+SEND_PLAINTEXT_COMMAND_SCHEMA = vol.Schema({
+    vol.Required("entry_id"): cv.string,
+    vol.Required(ATTR_PLAINTEXT): cv.string,
+})
+
+DECRYPT_DATA_SCHEMA = vol.Schema({
+    vol.Required("entry_id"): cv.string,
+    vol.Required(ATTR_DATA): _hex_string,
 })
 
 
@@ -78,7 +99,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
         if not hass.data[DOMAIN]:
-            for service in (SERVICE_SEND_COMMAND, SERVICE_PAUSE, SERVICE_RESUME):
+            for service in (SERVICE_SEND_COMMAND, SERVICE_SEND_RAW_COMMAND,
+                            SERVICE_SEND_PLAINTEXT_COMMAND, SERVICE_DECRYPT_DATA):
                 hass.services.async_remove(DOMAIN, service)
             del hass.data[DOMAIN]
 
@@ -93,27 +115,36 @@ def _get_client(hass: HomeAssistant, entry_id: str) -> CandyClient:
 
 
 def _async_register_services(hass: HomeAssistant) -> None:
-    if hass.services.has_service(DOMAIN, SERVICE_SEND_COMMAND):
+    if hass.services.has_service(DOMAIN, SERVICE_SEND_RAW_COMMAND):
         return
 
     async def handle_send_command(call: ServiceCall) -> None:
         client = _get_client(hass, call.data["entry_id"])
         await client.send_command(call.data[ATTR_PARAMS])
 
-    async def handle_pause(call: ServiceCall) -> None:
+    async def handle_send_raw_command(call: ServiceCall) -> None:
         client = _get_client(hass, call.data["entry_id"])
-        await client.send_command(pause_payload())
+        await client.send_encrypted_data(call.data[ATTR_DATA])
 
-    async def handle_resume(call: ServiceCall) -> None:
+    async def handle_send_plaintext_command(call: ServiceCall) -> None:
         client = _get_client(hass, call.data["entry_id"])
-        await client.send_command(resume_payload())
+        hex_blob = client.encrypt_command(call.data[ATTR_PLAINTEXT])
+        await client.send_encrypted_data(hex_blob)
+
+    async def handle_decrypt_data(call: ServiceCall) -> None:
+        client = _get_client(hass, call.data["entry_id"])
+        plaintext = client.decrypt_data(call.data[ATTR_DATA])
+        _LOGGER.warning("candy.decrypt_data result: %s", plaintext)
 
     hass.services.async_register(
         DOMAIN, SERVICE_SEND_COMMAND, handle_send_command, schema=SEND_COMMAND_SCHEMA
     )
     hass.services.async_register(
-        DOMAIN, SERVICE_PAUSE, handle_pause, schema=ENTRY_TARGET_SCHEMA
+        DOMAIN, SERVICE_SEND_RAW_COMMAND, handle_send_raw_command, schema=SEND_RAW_COMMAND_SCHEMA
     )
     hass.services.async_register(
-        DOMAIN, SERVICE_RESUME, handle_resume, schema=ENTRY_TARGET_SCHEMA
+        DOMAIN, SERVICE_SEND_PLAINTEXT_COMMAND, handle_send_plaintext_command, schema=SEND_PLAINTEXT_COMMAND_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_DECRYPT_DATA, handle_decrypt_data, schema=DECRYPT_DATA_SCHEMA
     )
