@@ -16,6 +16,9 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from .client import CandyClient
+from .client.commands import (washing_machine_pause, washing_machine_resume,
+                              washing_machine_start, washing_machine_stop)
+from .client.model import WashingMachineStatus
 
 from .const import *
 
@@ -49,6 +52,25 @@ SEND_PLAINTEXT_COMMAND_SCHEMA = vol.Schema({
 DECRYPT_DATA_SCHEMA = vol.Schema({
     vol.Required("entry_id"): cv.string,
     vol.Required(ATTR_DATA): _hex_string,
+})
+
+WM_START_SCHEMA = vol.Schema({
+    vol.Required("entry_id"): cv.string,
+    vol.Required(ATTR_PROGRAM): vol.All(int, vol.Range(min=0)),
+    vol.Optional(ATTR_TEMP): vol.All(int, vol.Range(min=0)),
+    vol.Optional(ATTR_SPIN_TARGET): vol.All(int, vol.Range(min=0)),
+    vol.Optional(ATTR_SPIN_DEFAULT): vol.All(int, vol.Range(min=0)),
+    vol.Optional(ATTR_SOIL_LEVEL): vol.All(int, vol.Range(min=0)),
+    vol.Optional(ATTR_STEAM, default=0): vol.All(int, vol.Range(min=0, max=1)),
+})
+
+WM_STOP_SCHEMA = vol.Schema({
+    vol.Required("entry_id"): cv.string,
+    vol.Optional(ATTR_PROGRAM): vol.All(int, vol.Range(min=0)),
+})
+
+ENTRY_ONLY_SCHEMA = vol.Schema({
+    vol.Required("entry_id"): cv.string,
 })
 
 
@@ -100,18 +122,30 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN].pop(entry.entry_id, None)
         if not hass.data[DOMAIN]:
             for service in (SERVICE_SEND_COMMAND, SERVICE_SEND_RAW_COMMAND,
-                            SERVICE_SEND_PLAINTEXT_COMMAND, SERVICE_DECRYPT_DATA):
+                            SERVICE_SEND_PLAINTEXT_COMMAND, SERVICE_DECRYPT_DATA,
+                            SERVICE_WM_START, SERVICE_WM_STOP,
+                            SERVICE_WM_PAUSE, SERVICE_WM_RESUME):
                 hass.services.async_remove(DOMAIN, service)
             del hass.data[DOMAIN]
 
     return unload_ok
 
 
-def _get_client(hass: HomeAssistant, entry_id: str) -> CandyClient:
+def _get_entry_data(hass: HomeAssistant, entry_id: str) -> dict:
     entry_data = hass.data.get(DOMAIN, {}).get(entry_id)
     if entry_data is None:
         raise HomeAssistantError(f"No Candy config entry with id {entry_id}")
-    return entry_data[DATA_KEY_CLIENT]
+    return entry_data
+
+
+def _get_client(hass: HomeAssistant, entry_id: str) -> CandyClient:
+    return _get_entry_data(hass, entry_id)[DATA_KEY_CLIENT]
+
+
+async def _send_plaintext(hass: HomeAssistant, entry_id: str, plaintext: str) -> None:
+    client = _get_client(hass, entry_id)
+    hex_blob = client.encrypt_command(plaintext)
+    await client.send_encrypted_data(hex_blob)
 
 
 def _async_register_services(hass: HomeAssistant) -> None:
@@ -136,6 +170,35 @@ def _async_register_services(hass: HomeAssistant) -> None:
         plaintext = client.decrypt_data(call.data[ATTR_DATA])
         _LOGGER.warning("candy.decrypt_data result: %s", plaintext)
 
+    async def handle_wm_start(call: ServiceCall) -> None:
+        plaintext = washing_machine_start(
+            program=call.data[ATTR_PROGRAM],
+            temp=call.data.get(ATTR_TEMP),
+            spin_target=call.data.get(ATTR_SPIN_TARGET),
+            spin_default=call.data.get(ATTR_SPIN_DEFAULT),
+            soil_level=call.data.get(ATTR_SOIL_LEVEL),
+            steam=call.data.get(ATTR_STEAM, 0),
+        )
+        await _send_plaintext(hass, call.data["entry_id"], plaintext)
+
+    async def handle_wm_stop(call: ServiceCall) -> None:
+        program = call.data.get(ATTR_PROGRAM)
+        if program is None:
+            entry_data = _get_entry_data(hass, call.data["entry_id"])
+            status = entry_data[DATA_KEY_COORDINATOR].data
+            if not isinstance(status, WashingMachineStatus) or status.program is None:
+                raise HomeAssistantError(
+                    "Cannot determine current program — pass `program:` explicitly"
+                )
+            program = status.program
+        await _send_plaintext(hass, call.data["entry_id"], washing_machine_stop(program))
+
+    async def handle_wm_pause(call: ServiceCall) -> None:
+        await _send_plaintext(hass, call.data["entry_id"], washing_machine_pause())
+
+    async def handle_wm_resume(call: ServiceCall) -> None:
+        await _send_plaintext(hass, call.data["entry_id"], washing_machine_resume())
+
     hass.services.async_register(
         DOMAIN, SERVICE_SEND_COMMAND, handle_send_command, schema=SEND_COMMAND_SCHEMA
     )
@@ -147,4 +210,16 @@ def _async_register_services(hass: HomeAssistant) -> None:
     )
     hass.services.async_register(
         DOMAIN, SERVICE_DECRYPT_DATA, handle_decrypt_data, schema=DECRYPT_DATA_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_WM_START, handle_wm_start, schema=WM_START_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_WM_STOP, handle_wm_stop, schema=WM_STOP_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_WM_PAUSE, handle_wm_pause, schema=ENTRY_ONLY_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_WM_RESUME, handle_wm_resume, schema=ENTRY_ONLY_SCHEMA
     )

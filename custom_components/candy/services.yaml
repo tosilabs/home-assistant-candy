@@ -67,6 +67,118 @@ send_plaintext_command:
       selector:
         text:
 
+washing_machine_start:
+  name: Washing machine — Start program
+  description: >
+    Build and send a START command for a Candy washing machine. Wraps the
+    plaintext format Write=1&Pa=0&Sel=0&PrNm=N&StSt=1&...&Stm=0&RecipeId=0&CheckUpState=0
+    and encrypts it with the configured device key.
+  fields:
+    entry_id:
+      name: Config entry ID
+      required: true
+      selector:
+        config_entry:
+          integration: candy
+    program:
+      name: Program number (PrNm)
+      description: The program number to start (1..N depending on model).
+      required: true
+      example: 13
+      selector:
+        number:
+          min: 0
+          max: 30
+          mode: box
+    temp:
+      name: Temperature (Temp)
+      description: Optional. Wash temperature in °C.
+      example: 40
+      selector:
+        number:
+          min: 0
+          max: 90
+          mode: box
+    spin_target:
+      name: Spin target (SpdTgt)
+      description: Optional. Target spin speed index (e.g. 15).
+      example: 15
+      selector:
+        number:
+          min: 0
+          max: 20
+          mode: box
+    spin_default:
+      name: Spin default (SpdDef)
+      description: Optional. Default spin speed index.
+      example: 10
+      selector:
+        number:
+          min: 0
+          max: 20
+          mode: box
+    soil_level:
+      name: Soil level (SLevTgt)
+      example: 2
+      selector:
+        number:
+          min: 0
+          max: 5
+          mode: box
+    steam:
+      name: Steam (Stm)
+      description: 0 or 1.
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 1
+          mode: box
+
+washing_machine_stop:
+  name: Washing machine — Stop program
+  description: >
+    Build and send a STOP command. If `program` is omitted, the current program
+    number is taken from the device's last known status.
+    Plaintext: Write=1&StSt=0&DelMd=0&PrNm=N
+  fields:
+    entry_id:
+      name: Config entry ID
+      required: true
+      selector:
+        config_entry:
+          integration: candy
+    program:
+      name: Program number
+      description: Optional override; defaults to the current program.
+      selector:
+        number:
+          min: 0
+          max: 30
+          mode: box
+
+washing_machine_pause:
+  name: Washing machine — Pause
+  description: Sends Write=1&Pa=1. Best-effort; not yet verified on every model.
+  fields:
+    entry_id:
+      name: Config entry ID
+      required: true
+      selector:
+        config_entry:
+          integration: candy
+
+washing_machine_resume:
+  name: Washing machine — Resume
+  description: Sends Write=1&Pa=0. Best-effort.
+  fields:
+    entry_id:
+      name: Config entry ID
+      required: true
+      selector:
+        config_entry:
+          integration: candy
+
 decrypt_data:
   name: Decrypt captured hex blob
   description: >

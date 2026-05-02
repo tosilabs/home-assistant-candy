@@ -19,49 +19,80 @@ Custom component for [Home Assistant](https://homeassistant.io) that integrates 
 
 ## Write commands
 
-In addition to read-only sensors, the integration exposes a few services to send commands back to the device. The write protocol is **not officially documented**, and on most modern Candy/Hoover devices the command is XOR-encrypted with the same key used for reading status, then hex-encoded and sent as the `data` parameter:
+In addition to read-only sensors, the integration can send commands back to the device. The write protocol is **not officially documented**; on encrypted Candy/Hoover devices the command is XOR-encrypted with the same key used for reading status, then hex-encoded and sent as the `data` parameter:
 
 ```
 http://<ip>/http-write.json?encrypted=1&data=<hex>
 ```
 
-### Services
+### Plaintext command format (washing machines)
+
+Reverse-engineered from real captured commands:
+
+| Action | Plaintext template |
+|---|---|
+| Start program | `Write=1&Pa=0&Sel=0&PrNm=<N>&StSt=1[&Temp=<T>][&SLevTgt=<L>][&SpdTgt=<S>][&SpdDef=<S>]&Stm=0&RecipeId=0&CheckUpState=0` |
+| Stop program | `Write=1&StSt=0&DelMd=0&PrNm=<N>` |
+| Pause | `Write=1&Pa=1` |
+| Resume | `Write=1&Pa=0` |
+
+### High-level services
+
+```yaml
+# Start program 13 at 40°C, spin 15
+service: candy.washing_machine_start
+data:
+  entry_id: <your_candy_config_entry_id>
+  program: 13
+  temp: 40
+  spin_target: 15
+  spin_default: 10
+```
+
+```yaml
+# Stop the current program
+service: candy.washing_machine_stop
+data:
+  entry_id: <your_candy_config_entry_id>
+  # `program` is optional — defaults to the current program from device status
+```
+
+```yaml
+service: candy.washing_machine_pause
+data:
+  entry_id: <your_candy_config_entry_id>
+```
+
+### Low-level services
 
 | Service | When to use |
 |---|---|
-| `candy.send_raw_command` | You have a captured hex blob (e.g. from mitmproxy or an old config) and want to replay it. |
-| `candy.send_plaintext_command` | You know the plaintext command format. The integration XOR-encrypts it with your device key automatically. |
-| `candy.decrypt_data` | You have a captured hex blob and want to learn its plaintext format. The plaintext is logged at WARNING level in the Home Assistant log. |
+| `candy.send_raw_command` | Replay a captured hex blob (e.g. from mitmproxy). |
+| `candy.send_plaintext_command` | Send your own plaintext; the integration auto-encrypts with your device key. |
+| `candy.decrypt_data` | Decrypt a captured hex blob to learn its plaintext format. The result is logged at WARNING level. |
 | `candy.send_command` | Legacy: sends key/value pairs as plain URL params (only works on non-encrypted models). |
 
-#### Example: replay a captured hex command
-
 ```yaml
+# Replay a captured hex blob
 service: candy.send_raw_command
 data:
   entry_id: <your_candy_config_entry_id>
   data: "3F150810065C5F423F153B185E5E45270D0B2C005E5148341E2F055151"
-```
 
-#### Example: send a plaintext command (auto-encrypted)
-
-```yaml
+# Or auto-encrypt arbitrary plaintext
 service: candy.send_plaintext_command
 data:
   entry_id: <your_candy_config_entry_id>
-  plaintext: "WashProgr=13&Temp=40&WiFiStatus=1"
-```
+  plaintext: "Write=1&Pa=0&Sel=0&PrNm=4&StSt=1&Stm=0&RecipeId=0&CheckUpState=0"
 
-#### Example: decrypt a captured hex blob to learn its format
-
-```yaml
+# Or decrypt a captured blob to learn its format (check log for result)
 service: candy.decrypt_data
 data:
   entry_id: <your_candy_config_entry_id>
   data: "3F150810065C5F423F153B185E5E45270D0B2C005E5148341E2F055151"
 ```
 
-Then check the Home Assistant log for a line like `candy.decrypt_data result: ...` containing the plaintext.
+The high-level `washing_machine_*` services have only been verified against a Candy washing machine with this format. If your model speaks a different dialect, capture a working command from the Candy/hOn app, decrypt it via `candy.decrypt_data`, and either send the discovered plaintext via `candy.send_plaintext_command` or open an issue with the format.
 
 ## Installation
 
