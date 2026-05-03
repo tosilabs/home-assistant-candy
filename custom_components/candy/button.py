@@ -235,6 +235,9 @@ class CandyTumbleStartButton(_TumbleBase):
             program=prog.program,
             time=prog.time,
             opt_mask=prog.opt_mask,
+            dry_level=prog.dry_level,
+            selection=prog.selection,
+            rapid=prog.rapid,
             pr_str=prog.name,
         )
         self._entry_data[DATA_KEY_LAST_PROGRAM] = prog.program

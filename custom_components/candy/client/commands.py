@@ -80,6 +80,9 @@ def tumble_dryer_start(
     program: int,
     time: int = 0,
     opt_mask: int = 0,
+    dry_level: int = 0,
+    selection: int = 0,
+    rapid: int = 0,
     pr_str: str = "",
     recipe_id: str = "0",
 ) -> str:
@@ -89,12 +92,22 @@ def tumble_dryer_start(
     Verified format (captured from Simply-Fi app, Whites program):
         Write=1&PrNm=1&Time=20&OptMsk=20&RecipeId=2ciC2s&PrStr=Whites&StSt=1
     RecipeId is a server-generated short hash; "0" is used as a local placeholder.
-    Time = max_time_level, OptMsk = mask1 from the Simply-Fi backend programme data.
+    Time = max_time_level/program_time_level, OptMsk = mask1 (base cycles).
+    Downloadable programs additionally use Sel, DryLev, and/or Rapid when non-zero.
     """
-    return (
-        f"Write=1&PrNm={program}&Time={time}&OptMsk={opt_mask}"
-        f"&RecipeId={recipe_id}&PrStr={pr_str}&StSt=1"
-    )
+    parts = [f"Write=1", f"PrNm={program}"]
+    if selection:
+        parts.append(f"Sel={selection}")
+    parts.append(f"Time={time}")
+    parts.append(f"OptMsk={opt_mask}")
+    if dry_level:
+        parts.append(f"DryLev={dry_level}")
+    if rapid:
+        parts.append(f"Rapid={rapid}")
+    parts.append(f"RecipeId={recipe_id}")
+    parts.append(f"PrStr={pr_str}")
+    parts.append(f"StSt=1")
+    return "&".join(parts)
 
 
 def tumble_dryer_stop(program: int) -> str:

@@ -108,11 +108,15 @@ WASHING_MACHINE_PROGRAMS_BY_NAME: dict[str, WashProgram] = {
 class TumbleDryerProgram:
     name: str
     program: int
-    time: int = 0      # max_time_level from Simply-Fi backend → Time in START command
-    opt_mask: int = 0  # mask1 from Simply-Fi backend → OptMsk in START command
+    time: int = 0       # max_time_level / program_time_level → Time in START command
+    opt_mask: int = 0   # mask1 → OptMsk in START command (base cycles)
+    dry_level: int = 0  # program_drying_level → DryLev in START command (downloadable)
+    selection: int = 0  # program_selection → Sel in START command (downloadable)
+    rapid: int = 0      # rapid_level → Rapid in START command (downloadable)
 
 
 TUMBLE_DRYER_PROGRAMS: list[TumbleDryerProgram] = [
+    # === Base cycles (selector_position 1–15 from appliance backend) ===
     TumbleDryerProgram("Whites", program=1, time=20, opt_mask=20),
     TumbleDryerProgram("Eco", program=2, time=0, opt_mask=0),
     TumbleDryerProgram("Whites Plus", program=3, time=20, opt_mask=20),
@@ -128,6 +132,37 @@ TUMBLE_DRYER_PROGRAMS: list[TumbleDryerProgram] = [
     TumbleDryerProgram("Relax Creases", program=13),
     TumbleDryerProgram("Sport Plus", program=14),
     TumbleDryerProgram("Small Load", program=15),
+    # === Downloadable programs from Simply-Fi cloud (td_wifi_download_program) ===
+    # `program` = parent base cycle (PrNm), `selection`/`dry_level`/`rapid` are
+    # downloadable-only parameters appended to the START command when non-zero.
+    # — Home Care —
+    TumbleDryerProgram("Bathrobe", program=22, selection=2, dry_level=4),
+    TumbleDryerProgram("Bed Linen", program=22, selection=2, dry_level=3),
+    TumbleDryerProgram("Denim Jeans", program=23, selection=9, dry_level=4),
+    TumbleDryerProgram("Duvet", program=23, time=4),
+    TumbleDryerProgram("Curtains", program=24, selection=8, dry_level=2),
+    TumbleDryerProgram("Delicate Tablecloths", program=24, selection=8, dry_level=3),
+    TumbleDryerProgram("Playsuits", program=24, selection=8, dry_level=3),
+    TumbleDryerProgram("Cuddly Toys", program=25, selection=12, dry_level=4),
+    TumbleDryerProgram("Tablecloths", program=27, selection=4, dry_level=4),
+    TumbleDryerProgram("Anti-Mites", program=29, selection=12, dry_level=4),
+    # — Special Care —
+    TumbleDryerProgram("Baby", program=30, selection=4, dry_level=3),
+    TumbleDryerProgram("Easy Iron Cotton", program=31, selection=3, dry_level=2),
+    TumbleDryerProgram("Easy Iron Synthetics", program=31, selection=10, dry_level=2),
+    TumbleDryerProgram("Gym Fit", program=32, selection=10, dry_level=2),
+    TumbleDryerProgram("Swimsuits & Bikinis", program=32, selection=10),
+    TumbleDryerProgram("Technical Fabrics", program=32, selection=10, dry_level=2),
+    TumbleDryerProgram("Backpacks", program=33, time=7, selection=8),
+    TumbleDryerProgram("Rapid 60 min Delicates", program=34, selection=8, rapid=2),
+    TumbleDryerProgram("Lingerie", program=24, selection=8, dry_level=2),
+    TumbleDryerProgram("Delicates Antiallergy", program=24, selection=8, dry_level=2),
+    TumbleDryerProgram("Shirts (download)", program=24, selection=7, dry_level=3),
+    # — Refresh / Special —
+    TumbleDryerProgram("Air Refresh", program=35, selection=8, rapid=1),
+    TumbleDryerProgram("Warm Embrace", program=35, selection=8, rapid=1),
+    TumbleDryerProgram("Dehumidifier", program=35, selection=8, rapid=1),
+    TumbleDryerProgram("Regenerates Waterproof", program=35, selection=8, rapid=1),
 ]
 
 TUMBLE_DRYER_PROGRAMS_BY_NAME: dict[str, TumbleDryerProgram] = {
