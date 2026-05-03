@@ -2,8 +2,9 @@
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from .client.model import TumbleDryerStatus, WashingMachineStatus
@@ -11,8 +12,13 @@ from .const import (DATA_KEY_COORDINATOR, DATA_KEY_WM_SOIL, DATA_KEY_WM_STEAM,
                     DEVICE_NAME_TUMBLE_DRYER, DEVICE_NAME_WASHING_MACHINE, DOMAIN,
                     SIGNAL_WM_PROGRAM_CHANGED, SUGGESTED_AREA_BATHROOM,
                     SUGGESTED_AREA_KITCHEN, UNIQUE_ID_WM_SOIL, UNIQUE_ID_WM_STEAM)
-from .programs import (TUMBLE_DRYER_PROGRAMS, WASHING_MACHINE_PROGRAMS,
-                       WASHING_MACHINE_PROGRAMS_BY_NAME)
+from .programs import (TUMBLE_DRYER_PROGRAMS,
+                       TUMBLE_DRYER_PROGRAM_DESCRIPTIONS_SQ,
+                       TUMBLE_DRYER_PROGRAM_META_SQ,
+                       WASHING_MACHINE_PROGRAMS,
+                       WASHING_MACHINE_PROGRAMS_BY_NAME,
+                       WASHING_MACHINE_PROGRAM_DESCRIPTIONS_SQ,
+                       WASHING_MACHINE_PROGRAM_META_SQ)
 
 UNIQUE_ID_WM_PROGRAM_SELECT = "{0}-wm_program_select"
 UNIQUE_ID_TD_PROGRAM_SELECT = "{0}-td_program_select"
@@ -42,6 +48,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
 
 
 class CandyWashProgramSelect(RestoreEntity, SelectEntity):
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, config_id: str):
         self.config_id = config_id
@@ -53,11 +61,11 @@ class CandyWashProgramSelect(RestoreEntity, SelectEntity):
 
     @property
     def name(self) -> str:
-        return "Washing machine program"
+        return "Program"
 
     @property
     def options(self) -> list[str]:
-        return [p.name for p in WASHING_MACHINE_PROGRAMS]
+        return sorted((p.name for p in WASHING_MACHINE_PROGRAMS), key=str.casefold)
 
     @property
     def current_option(self) -> str:
@@ -75,6 +83,17 @@ class CandyWashProgramSelect(RestoreEntity, SelectEntity):
             manufacturer="Candy",
             suggested_area=SUGGESTED_AREA_KITCHEN,
         )
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str]:
+        return {
+            "category_sq": WASHING_MACHINE_PROGRAM_META_SQ.get(self._current_option, {}).get("category", "Tjetër"),
+            "profile_sq": WASHING_MACHINE_PROGRAM_META_SQ.get(self._current_option, {}).get("profile", "Profil i panjohur"),
+            "description_sq": WASHING_MACHINE_PROGRAM_DESCRIPTIONS_SQ.get(
+                self._current_option,
+                "Përshkrimi në shqip nuk është shtuar ende për këtë program.",
+            )
+        }
 
     async def async_select_option(self, option: str) -> None:
         self._current_option = option
@@ -96,6 +115,8 @@ class CandyWashProgramSelect(RestoreEntity, SelectEntity):
 
 
 class CandyWashSoilLevelSelect(RestoreEntity, SelectEntity):
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, config_id: str, entry_data: dict):
         self.config_id = config_id
@@ -108,7 +129,7 @@ class CandyWashSoilLevelSelect(RestoreEntity, SelectEntity):
 
     @property
     def name(self) -> str:
-        return "Washing machine soil level"
+        return "Soil level"
 
     @property
     def options(self) -> list[str]:
@@ -132,6 +153,8 @@ class CandyWashSoilLevelSelect(RestoreEntity, SelectEntity):
         )
 
     async def async_select_option(self, option: str) -> None:
+        if option not in _SOIL_TO_VALUE:
+            raise HomeAssistantError(f"Invalid soil option: {option}")
         self._current = option
         self._entry_data[DATA_KEY_WM_SOIL] = _SOIL_TO_VALUE[option]
         self.async_write_ha_state()
@@ -160,6 +183,8 @@ class CandyWashSoilLevelSelect(RestoreEntity, SelectEntity):
 
 
 class CandyWashSteamSelect(RestoreEntity, SelectEntity):
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, config_id: str, entry_data: dict):
         self.config_id = config_id
@@ -172,7 +197,7 @@ class CandyWashSteamSelect(RestoreEntity, SelectEntity):
 
     @property
     def name(self) -> str:
-        return "Washing machine steam"
+        return "Steam"
 
     @property
     def options(self) -> list[str]:
@@ -196,6 +221,8 @@ class CandyWashSteamSelect(RestoreEntity, SelectEntity):
         )
 
     async def async_select_option(self, option: str) -> None:
+        if option not in _STEAM_TO_VALUE:
+            raise HomeAssistantError(f"Invalid steam option: {option}")
         self._current = option
         self._entry_data[DATA_KEY_WM_STEAM] = _STEAM_TO_VALUE[option]
         self.async_write_ha_state()
@@ -224,6 +251,8 @@ class CandyWashSteamSelect(RestoreEntity, SelectEntity):
 
 
 class CandyTumbleProgramSelect(RestoreEntity, SelectEntity):
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, config_id: str):
         self.config_id = config_id
@@ -235,11 +264,11 @@ class CandyTumbleProgramSelect(RestoreEntity, SelectEntity):
 
     @property
     def name(self) -> str:
-        return "Tumble dryer program"
+        return "Program"
 
     @property
     def options(self) -> list[str]:
-        return [p.name for p in TUMBLE_DRYER_PROGRAMS]
+        return sorted((p.name for p in TUMBLE_DRYER_PROGRAMS), key=str.casefold)
 
     @property
     def current_option(self) -> str:
@@ -257,6 +286,17 @@ class CandyTumbleProgramSelect(RestoreEntity, SelectEntity):
             manufacturer="Candy",
             suggested_area=SUGGESTED_AREA_BATHROOM,
         )
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str]:
+        return {
+            "category_sq": TUMBLE_DRYER_PROGRAM_META_SQ.get(self._current_option, {}).get("category", "Tjetër"),
+            "profile_sq": TUMBLE_DRYER_PROGRAM_META_SQ.get(self._current_option, {}).get("profile", "Profil i panjohur"),
+            "description_sq": TUMBLE_DRYER_PROGRAM_DESCRIPTIONS_SQ.get(
+                self._current_option,
+                "Përshkrimi në shqip nuk është shtuar ende për këtë program.",
+            )
+        }
 
     async def async_select_option(self, option: str) -> None:
         self._current_option = option

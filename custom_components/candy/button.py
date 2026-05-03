@@ -138,6 +138,7 @@ class CandyWashStartButton(_WashBase):
             spin_target=spin,
             spin_default=prog.spin_default,
             steam=steam,
+            opt_mask=prog.opt_mask,
         )
         self._entry_data[DATA_KEY_LAST_PROGRAM] = prog.program
         await _send(self._client, plaintext)
