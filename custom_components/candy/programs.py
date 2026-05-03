@@ -15,6 +15,7 @@ class WashProgram:
 
 
 WASHING_MACHINE_PROGRAMS: list[WashProgram] = [
+    # === Base cycles (selector_position 1–19 from appliance backend) ===
     WashProgram("Perfect 20", program=1),
     WashProgram("Coloured 40", program=2),
     WashProgram("Hygiene 60", program=3, spin_target=15, spin_default=10),
@@ -36,6 +37,66 @@ WASHING_MACHINE_PROGRAMS: list[WashProgram] = [
     WashProgram("Smart Fi Plus", program=15, temp=90, soil_level=1, spin_target=4, spin_default=4),
     WashProgram("Silk", program=18, temp=30),
     WashProgram("Daily 59 min", program=19, temp=60, spin_target=15, spin_default=10),
+    # === Downloadable programs from Simply-Fi cloud (wm_wd_programs.json) ===
+    # Each runs on the parent base cycle (`program` below) with these defaults.
+    # — Baby —
+    WashProgram("Baby Sanitizer", program=1, temp=60, soil_level=3, spin_target=15, spin_default=15),
+    WashProgram("Cuddly Toys", program=11, temp=40, spin_target=4, spin_default=4),
+    WashProgram("Playsuits", program=2, temp=40, soil_level=2, spin_target=10, spin_default=10),
+    # — Business —
+    WashProgram("Men's Trousers", program=9, temp=40, spin_target=10, spin_default=10),
+    WashProgram("Shirts", program=9, temp=30, spin_target=10, spin_default=10),
+    # — Home Care —
+    WashProgram("Bathrobe", program=9, temp=40, spin_target=10, spin_default=10),
+    WashProgram("Bed Linen", program=1, temp=40, soil_level=2, spin_target=15, spin_default=15),
+    WashProgram("Bed Linen Coloured", program=10, temp=40, soil_level=2, spin_target=10, spin_default=10),
+    WashProgram("Curtains", program=4, temp=30, spin_target=4, spin_default=4),
+    WashProgram("Curtains Coloured", program=11, temp=30, spin_target=4, spin_default=4),
+    WashProgram("Delicate Tablecloths", program=2, temp=30, soil_level=1, spin_target=8, spin_default=8),
+    WashProgram("Denim Jeans", program=9, temp=40, spin_target=10, spin_default=10),
+    WashProgram("Duvet & Quilts", program=11, temp=30, spin_target=4, spin_default=4),
+    WashProgram("Mats", program=10, temp=40, soil_level=2, spin_target=8, spin_default=8),
+    WashProgram("Swimsuits & Bikinis", program=7, temp=30, spin_target=9, spin_default=9),
+    WashProgram("Tablecloths", program=1, temp=60, soil_level=3, spin_target=10, spin_default=10),
+    WashProgram("Tablecloths Coloured", program=10, temp=40, soil_level=3, spin_target=10, spin_default=10),
+    # — Energy Saver / Rapid —
+    WashProgram("Rapid Delicates 30 min", program=6, temp=30, soil_level=2, spin_target=10, spin_default=10),
+    WashProgram("Refresh 14 min", program=5, temp=30, soil_level=1, spin_target=10, spin_default=10),
+    WashProgram("Time Saver Cotton", program=10, temp=40, soil_level=1, spin_target=10, spin_default=10),
+    WashProgram("Time Saver Mixed", program=2, temp=40, soil_level=1, spin_target=10, spin_default=10),
+    # — Stains —
+    WashProgram("Bleaching", program=8, spin_target=10, spin_default=10),
+    WashProgram("Blood Stains", program=1, temp=60, soil_level=3, spin_target=10, spin_default=10),
+    WashProgram("Chocolate Stains", program=1, temp=60, soil_level=3, spin_target=10, spin_default=10),
+    WashProgram("Colored Anti-Stain", program=1, temp=40, soil_level=3, spin_target=10, spin_default=10),
+    WashProgram("Fruit Stains", program=1, temp=60, soil_level=3, spin_target=10, spin_default=10),
+    WashProgram("Perfect White", program=1, temp=60, soil_level=3, spin_target=10, spin_default=10),
+    WashProgram("Stain Remover", program=1, temp=60, soil_level=3, spin_target=10, spin_default=10),
+    WashProgram("Wine Stains", program=1, temp=60, soil_level=3, spin_target=10, spin_default=10),
+    # — Health & Wellness —
+    WashProgram("Anti-Mites", program=1, temp=60, soil_level=3, spin_target=10, spin_default=10),
+    WashProgram("Anti-Odor", program=1, temp=60, soil_level=3, spin_target=10, spin_default=10),
+    WashProgram("Delicate Antiallergy", program=11, temp=40, spin_target=4, spin_default=4),
+    WashProgram("Masks Sanification", program=1, temp=60, soil_level=3, spin_target=10, spin_default=10),
+    WashProgram("Masks Refresh", program=12, temp=40, soil_level=3, spin_target=10, spin_default=10),
+    WashProgram("New Clothes", program=6, temp=20, soil_level=2, spin_target=10, spin_default=10),
+    WashProgram("Pets", program=9, temp=40, spin_target=10, spin_default=10),
+    # — Sports —
+    WashProgram("Backpacks", program=11, temp=30, spin_target=4, spin_default=4),
+    WashProgram("Diving Suits", program=11, spin_target=4, spin_default=4),
+    WashProgram("Gym Fit", program=7, temp=30, spin_target=10, spin_default=10),
+    WashProgram("Ski Suit", program=11, temp=30, spin_target=4, spin_default=4),
+    WashProgram("Technical Fabrics", program=7, temp=30, spin_target=10, spin_default=10),
+    WashProgram("Technical Jackets", program=11, temp=30, spin_target=4, spin_default=4),
+    WashProgram("Trainers", program=11, temp=20, spin_target=4, spin_default=4),
+    # — Delicate Fabrics —
+    WashProgram("Cashmere", program=3, temp=20, spin_target=6, spin_default=6),
+    WashProgram("Colored", program=10, temp=30, soil_level=2, spin_target=10, spin_default=10),
+    WashProgram("Dark", program=2, temp=30, soil_level=2, spin_target=10, spin_default=10),
+    WashProgram("Delicate Colored", program=2, temp=20, soil_level=1, spin_target=8, spin_default=8),
+    WashProgram("Down Jackets", program=11, temp=30, spin_target=4, spin_default=4),
+    WashProgram("Lingerie", program=7, temp=30, spin_target=8, spin_default=8),
+    WashProgram("Silk (download)", program=3, temp=30, spin_target=8, spin_default=8),
 ]
 
 WASHING_MACHINE_PROGRAMS_BY_NAME: dict[str, WashProgram] = {
