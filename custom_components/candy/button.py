@@ -27,13 +27,13 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
         async_add_entities([
             CandyWashPauseButton(coordinator, client, config_id),
             CandyWashResumeButton(coordinator, client, config_id),
-            CandyWashStopButton(coordinator, client, config_id),
+            CandyWashStopButton(coordinator, client, config_id, entry_data),
         ])
     elif isinstance(coordinator.data, TumbleDryerStatus):
         async_add_entities([
             CandyTumblePauseButton(coordinator, client, config_id),
             CandyTumbleResumeButton(coordinator, client, config_id),
-            CandyTumbleStopButton(coordinator, client, config_id),
+            CandyTumbleStopButton(coordinator, client, config_id, entry_data),
         ])
 
 
@@ -103,6 +103,10 @@ class CandyWashResumeButton(_WashBase):
 
 
 class CandyWashStopButton(_WashBase):
+    def __init__(self, coordinator, client, config_id, entry_data):
+        super().__init__(coordinator, client, config_id)
+        self._entry_data = entry_data
+
     @property
     def name(self) -> str: return "Stop washing machine"
 
@@ -114,15 +118,16 @@ class CandyWashStopButton(_WashBase):
     def icon(self) -> str: return "mdi:stop"
 
     async def async_press(self) -> None:
-        status: WashingMachineStatus = self.coordinator.data
-        if not isinstance(status, WashingMachineStatus):
-            raise HomeAssistantError("Cannot stop: status not available")
-        program = status.program
-        if program is None and status.program_type is not None:
-            program = status.program_type.code
+        status = self.coordinator.data
+        program = None
+        if isinstance(status, WashingMachineStatus) and status.program is not None:
+            program = status.program
+        else:
+            program = self._entry_data.get(DATA_KEY_LAST_PROGRAM)
         if program is None:
             raise HomeAssistantError(
-                "Cannot stop: current program unknown — call washing_machine_stop service with explicit program"
+                "Cannot stop: program unknown. Start a program from HA first, or call "
+                "washing_machine_stop service with explicit program."
             )
         await _send(self._client, washing_machine_stop(program))
 
@@ -166,6 +171,10 @@ class CandyTumbleResumeButton(_TumbleBase):
 
 
 class CandyTumbleStopButton(_TumbleBase):
+    def __init__(self, coordinator, client, config_id, entry_data):
+        super().__init__(coordinator, client, config_id)
+        self._entry_data = entry_data
+
     @property
     def name(self) -> str: return "Stop tumble dryer"
 
@@ -177,9 +186,15 @@ class CandyTumbleStopButton(_TumbleBase):
     def icon(self) -> str: return "mdi:stop"
 
     async def async_press(self) -> None:
-        status: TumbleDryerStatus = self.coordinator.data
-        if not isinstance(status, TumbleDryerStatus) or status.program is None:
+        status = self.coordinator.data
+        program = None
+        if isinstance(status, TumbleDryerStatus) and status.program is not None:
+            program = status.program
+        else:
+            program = self._entry_data.get(DATA_KEY_LAST_PROGRAM)
+        if program is None:
             raise HomeAssistantError(
-                "Cannot stop: current program unknown — call tumble_dryer_stop service with explicit program"
+                "Cannot stop: program unknown. Start a program from HA first, or call "
+                "tumble_dryer_stop service with explicit program."
             )
-        await _send(self._client, tumble_dryer_stop(status.program))
+        await _send(self._client, tumble_dryer_stop(program))

@@ -133,6 +133,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {
         DATA_KEY_COORDINATOR: coordinator,
         DATA_KEY_CLIENT: client,
+        DATA_KEY_LAST_PROGRAM: None,
     }
 
     await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
@@ -230,33 +231,34 @@ def _async_register_services(hass: HomeAssistant) -> None:
         _LOGGER.warning("candy.decrypt_data result: %s", plaintext)
 
     async def handle_wm_start(call: ServiceCall) -> None:
+        program = call.data[ATTR_PROGRAM]
         plaintext = washing_machine_start(
-            program=call.data[ATTR_PROGRAM],
+            program=program,
             temp=call.data.get(ATTR_TEMP),
             spin_target=call.data.get(ATTR_SPIN_TARGET),
             spin_default=call.data.get(ATTR_SPIN_DEFAULT),
             soil_level=call.data.get(ATTR_SOIL_LEVEL),
             steam=call.data.get(ATTR_STEAM, 0),
         )
-        await _send_plaintext(hass, _resolve_entry_id(hass, call), plaintext)
+        entry_id = _resolve_entry_id(hass, call)
+        _get_entry_data(hass, entry_id)[DATA_KEY_LAST_PROGRAM] = program
+        await _send_plaintext(hass, entry_id, plaintext)
 
     async def handle_wm_stop(call: ServiceCall) -> None:
         program = call.data.get(ATTR_PROGRAM)
+        entry_id = _resolve_entry_id(hass, call)
+        entry_data = _get_entry_data(hass, entry_id)
         if program is None:
-            entry_data = _get_entry_data(hass, _resolve_entry_id(hass, call))
             status = entry_data[DATA_KEY_COORDINATOR].data
-            if not isinstance(status, WashingMachineStatus):
-                raise HomeAssistantError(
-                    "Cannot determine current program — pass `program:` explicitly"
-                )
-            program = status.program
-            if program is None and status.program_type is not None:
-                program = status.program_type.code
+            if isinstance(status, WashingMachineStatus) and status.program is not None:
+                program = status.program
+            else:
+                program = entry_data.get(DATA_KEY_LAST_PROGRAM)
             if program is None:
                 raise HomeAssistantError(
                     "Cannot determine current program — pass `program:` explicitly"
                 )
-        await _send_plaintext(hass, _resolve_entry_id(hass, call), washing_machine_stop(program))
+        await _send_plaintext(hass, entry_id, washing_machine_stop(program))
 
     async def handle_wm_pause(call: ServiceCall) -> None:
         await _send_plaintext(hass, _resolve_entry_id(hass, call), washing_machine_pause())
@@ -265,25 +267,32 @@ def _async_register_services(hass: HomeAssistant) -> None:
         await _send_plaintext(hass, _resolve_entry_id(hass, call), washing_machine_resume())
 
     async def handle_td_start(call: ServiceCall) -> None:
+        program = call.data[ATTR_PROGRAM]
         plaintext = tumble_dryer_start(
-            program=call.data[ATTR_PROGRAM],
+            program=program,
             dry_level=call.data.get(ATTR_DRY_LEVEL),
             dry_level_target=call.data.get(ATTR_DRY_LEVEL_TARGET),
             rapid=call.data.get(ATTR_RAPID, 0),
         )
-        await _send_plaintext(hass, _resolve_entry_id(hass, call), plaintext)
+        entry_id = _resolve_entry_id(hass, call)
+        _get_entry_data(hass, entry_id)[DATA_KEY_LAST_PROGRAM] = program
+        await _send_plaintext(hass, entry_id, plaintext)
 
     async def handle_td_stop(call: ServiceCall) -> None:
         program = call.data.get(ATTR_PROGRAM)
+        entry_id = _resolve_entry_id(hass, call)
+        entry_data = _get_entry_data(hass, entry_id)
         if program is None:
-            entry_data = _get_entry_data(hass, _resolve_entry_id(hass, call))
             status = entry_data[DATA_KEY_COORDINATOR].data
-            if not isinstance(status, TumbleDryerStatus):
+            if isinstance(status, TumbleDryerStatus) and status.program is not None:
+                program = status.program
+            else:
+                program = entry_data.get(DATA_KEY_LAST_PROGRAM)
+            if program is None:
                 raise HomeAssistantError(
                     "Cannot determine current program — pass `program:` explicitly"
                 )
-            program = status.program
-        await _send_plaintext(hass, _resolve_entry_id(hass, call), tumble_dryer_stop(program))
+        await _send_plaintext(hass, entry_id, tumble_dryer_stop(program))
 
     async def handle_td_pause(call: ServiceCall) -> None:
         await _send_plaintext(hass, _resolve_entry_id(hass, call), tumble_dryer_pause())

@@ -5,6 +5,7 @@ PLATFORMS = ["sensor", "button"]
 
 DATA_KEY_COORDINATOR = "coordinator"
 DATA_KEY_CLIENT = "client"
+DATA_KEY_LAST_PROGRAM = "last_program"
 
 CONF_INTEGRATION_TITLE = "Candy"
 CONF_KEY_USE_ENCRYPTION = "use_encryption"
