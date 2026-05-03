@@ -14,14 +14,19 @@ from .client.commands import (tumble_dryer_pause, tumble_dryer_resume,
                               tumble_dryer_start, tumble_dryer_stop,
                               washing_machine_pause, washing_machine_resume,
                               washing_machine_start, washing_machine_stop)
-from .client.model import TumbleDryerStatus, WashingMachineStatus
+from .client.model import MachineState, TumbleDryerStatus, WashingMachineStatus
 from .const import *
 from .programs import (TUMBLE_DRYER_PROGRAMS_BY_NAME,
                        WASHING_MACHINE_PROGRAMS_BY_NAME)
 from .select import UNIQUE_ID_TD_PROGRAM_SELECT, UNIQUE_ID_WM_PROGRAM_SELECT
 
-# sentinel – means "use the program's own default"
-_USE_PROGRAM_DEFAULT = object()
+_WM_IDLE = (MachineState.IDLE, MachineState.FINISHED1, MachineState.FINISHED2)
+_WM_RUNNING = (MachineState.RUNNING,)
+_WM_PAUSED = (MachineState.PAUSED,)
+_WM_STOPPABLE = (
+    MachineState.RUNNING, MachineState.PAUSED,
+    MachineState.DELAYED_START_SELECTION, MachineState.DELAYED_START_PROGRAMMED,
+)
 
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities):
@@ -80,6 +85,10 @@ class _WashBase(CandyBaseButton):
     def _suggested_area(self) -> str:
         return SUGGESTED_AREA_KITCHEN
 
+    def _wm_state(self):
+        d = self.coordinator.data
+        return d.machine_state if isinstance(d, WashingMachineStatus) else None
+
 
 class CandyWashStartButton(_WashBase):
     def __init__(self, coordinator, client, config_id, entry_data, hass):
@@ -96,6 +105,10 @@ class CandyWashStartButton(_WashBase):
 
     @property
     def icon(self) -> str: return "mdi:play"
+
+    @property
+    def available(self) -> bool:
+        return super().available and self._wm_state() in _WM_IDLE
 
     async def async_press(self) -> None:
         from homeassistant.helpers import entity_registry as er
@@ -141,6 +154,10 @@ class CandyWashPauseButton(_WashBase):
     @property
     def icon(self) -> str: return "mdi:pause"
 
+    @property
+    def available(self) -> bool:
+        return super().available and self._wm_state() in _WM_RUNNING
+
     async def async_press(self) -> None:
         await _send(self._client, washing_machine_pause())
 
@@ -155,6 +172,10 @@ class CandyWashResumeButton(_WashBase):
 
     @property
     def icon(self) -> str: return "mdi:play"
+
+    @property
+    def available(self) -> bool:
+        return super().available and self._wm_state() in _WM_PAUSED
 
     async def async_press(self) -> None:
         await _send(self._client, washing_machine_resume())
@@ -174,6 +195,10 @@ class CandyWashStopButton(_WashBase):
 
     @property
     def icon(self) -> str: return "mdi:stop"
+
+    @property
+    def available(self) -> bool:
+        return super().available and self._wm_state() in _WM_STOPPABLE
 
     async def async_press(self) -> None:
         status = self.coordinator.data
@@ -197,6 +222,10 @@ class _TumbleBase(CandyBaseButton):
     def _suggested_area(self) -> str:
         return SUGGESTED_AREA_BATHROOM
 
+    def _td_state(self):
+        d = self.coordinator.data
+        return d.machine_state if isinstance(d, TumbleDryerStatus) else None
+
 
 class CandyTumbleStartButton(_TumbleBase):
     def __init__(self, coordinator, client, config_id, entry_data, hass):
@@ -213,6 +242,10 @@ class CandyTumbleStartButton(_TumbleBase):
 
     @property
     def icon(self) -> str: return "mdi:play"
+
+    @property
+    def available(self) -> bool:
+        return super().available and self._td_state() in _WM_IDLE
 
     async def async_press(self) -> None:
         from homeassistant.helpers import entity_registry as er
@@ -252,6 +285,10 @@ class CandyTumblePauseButton(_TumbleBase):
     @property
     def icon(self) -> str: return "mdi:pause"
 
+    @property
+    def available(self) -> bool:
+        return super().available and self._td_state() in _WM_RUNNING
+
     async def async_press(self) -> None:
         await _send(self._client, tumble_dryer_pause())
 
@@ -266,6 +303,10 @@ class CandyTumbleResumeButton(_TumbleBase):
 
     @property
     def icon(self) -> str: return "mdi:play"
+
+    @property
+    def available(self) -> bool:
+        return super().available and self._td_state() in _WM_PAUSED
 
     async def async_press(self) -> None:
         await _send(self._client, tumble_dryer_resume())
@@ -285,6 +326,10 @@ class CandyTumbleStopButton(_TumbleBase):
 
     @property
     def icon(self) -> str: return "mdi:stop"
+
+    @property
+    def available(self) -> bool:
+        return super().available and self._td_state() in _WM_STOPPABLE
 
     async def async_press(self) -> None:
         status = self.coordinator.data
