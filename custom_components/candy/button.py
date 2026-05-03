@@ -1,4 +1,4 @@
-"""Button entities for Candy machines: Pause / Resume / Stop."""
+"""Button entities for Candy machines: Start / Pause / Resume / Stop."""
 from abc import abstractmethod
 
 from homeassistant.components.button import ButtonEntity
@@ -12,9 +12,12 @@ from homeassistant.helpers.update_coordinator import (CoordinatorEntity,
 from .client import CandyClient
 from .client.commands import (tumble_dryer_pause, tumble_dryer_resume,
                               tumble_dryer_stop, washing_machine_pause,
-                              washing_machine_resume, washing_machine_stop)
+                              washing_machine_resume, washing_machine_start,
+                              washing_machine_stop)
 from .client.model import TumbleDryerStatus, WashingMachineStatus
 from .const import *
+from .programs import WASHING_MACHINE_PROGRAMS_BY_NAME
+from .select import UNIQUE_ID_WM_PROGRAM_SELECT
 
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities):
@@ -25,6 +28,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
 
     if isinstance(coordinator.data, WashingMachineStatus):
         async_add_entities([
+            CandyWashStartButton(coordinator, client, config_id, entry_data, hass),
             CandyWashPauseButton(coordinator, client, config_id),
             CandyWashResumeButton(coordinator, client, config_id),
             CandyWashStopButton(coordinator, client, config_id, entry_data),
@@ -70,6 +74,50 @@ class _WashBase(CandyBaseButton):
 
     def _suggested_area(self) -> str:
         return SUGGESTED_AREA_KITCHEN
+
+
+class CandyWashStartButton(_WashBase):
+    def __init__(self, coordinator, client, config_id, entry_data, hass):
+        super().__init__(coordinator, client, config_id)
+        self._entry_data = entry_data
+        self._hass = hass
+
+    @property
+    def name(self) -> str: return "Start washing machine"
+
+    @property
+    def unique_id(self) -> str:
+        return UNIQUE_ID_WASH_START_BUTTON.format(self.config_id)
+
+    @property
+    def icon(self) -> str: return "mdi:play"
+
+    async def async_press(self) -> None:
+        select_uid = UNIQUE_ID_WM_PROGRAM_SELECT.format(self.config_id)
+        entity_reg = self._hass.data.get("entity_registry") or \
+            __import__("homeassistant.helpers.entity_registry", fromlist=["async_get"]).async_get(self._hass)
+        # Get selected program name from the select entity state
+        from homeassistant.helpers import entity_registry as er
+        registry = er.async_get(self._hass)
+        entry = registry.async_get_entity_id("select", DOMAIN, select_uid)
+        if entry is None:
+            raise HomeAssistantError("Program select entity not found")
+        state = self._hass.states.get(entry)
+        if state is None:
+            raise HomeAssistantError("Program select entity has no state")
+        program_name = state.state
+        prog = WASHING_MACHINE_PROGRAMS_BY_NAME.get(program_name)
+        if prog is None:
+            raise HomeAssistantError(f"Unknown program: {program_name}")
+        plaintext = washing_machine_start(
+            program=prog.program,
+            spin_target=prog.spin_target,
+            spin_default=prog.spin_default,
+            soil_level=prog.soil_level,
+            steam=prog.steam,
+        )
+        self._entry_data[DATA_KEY_LAST_PROGRAM] = prog.program
+        await _send(self._client, plaintext)
 
 
 class CandyWashPauseButton(_WashBase):
