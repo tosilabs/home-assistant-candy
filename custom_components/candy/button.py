@@ -114,19 +114,16 @@ class CandyWashStartButton(_WashBase):
         # Apply user overrides from the number/select entities when set
         temp = self._entry_data.get(DATA_KEY_WM_TEMP, prog.temp)
         spin = self._entry_data.get(DATA_KEY_WM_SPIN, prog.spin_target)
-        # DATA_KEY_WM_SOIL stores None (for "no soil") or 1/2/3
-        soil_key = DATA_KEY_WM_SOIL
-        soil = self._entry_data[soil_key] if soil_key in self._entry_data else prog.soil_level
         steam = self._entry_data.get(DATA_KEY_WM_STEAM, prog.steam)
         if steam is None:
             steam = prog.steam
 
         plaintext = washing_machine_start(
             program=prog.program,
-            temp=temp,
+            temp_target=temp,
+            temp_default=prog.temp,
             spin_target=spin,
-            spin_default=spin,
-            soil_level=soil,
+            spin_default=prog.spin_default,
             steam=steam,
         )
         self._entry_data[DATA_KEY_LAST_PROGRAM] = prog.program

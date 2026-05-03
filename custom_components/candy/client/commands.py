@@ -11,11 +11,12 @@ from typing import Optional
 
 def washing_machine_start(
     program: int,
-    temp: Optional[int] = None,
+    temp_target: Optional[int] = None,
+    temp_default: Optional[int] = None,
     spin_target: Optional[int] = None,
     spin_default: Optional[int] = None,
-    soil_level: Optional[int] = None,
     steam: int = 0,
+    opt_mask: int = 0,
     pause: int = 0,
     selection: int = 0,
     recipe_id: int = 0,
@@ -24,26 +25,30 @@ def washing_machine_start(
     """
     Build a Candy washing machine START plaintext command.
 
-    The minimal verified format is:
-        Write=1&Pa=0&Sel=0&PrNm=<N>&StSt=1&Stm=0&RecipeId=0&CheckUpState=0
-    Optional fields (Temp, SLevTgt, SpdTgt, SpdDef) are appended only when set,
-    matching the patterns observed in captured commands.
+    Verified format captured from Simply-Fi app (Resistant Cottons, 90 °C):
+        Write=1&Pa=0&Sel=0&PrNm=13&StSt=1&TmpTgt=90&TmpDf=60&SpdTgt=13&SpdDef=10
+        &OptMsk=67&Stm=2&RecipeId=0&CheckUpState=0
+
+    TmpTgt = user-selected temperature, TmpDf = program default temperature.
+    SpdDef = program default spin index (÷100 rpm), NOT the user's chosen speed.
+    OptMsk encodes extra options (prewash, hygiene rinse, extra rinses, etc.).
     """
     parts = [
-        f"Write=1",
+        "Write=1",
         f"Pa={pause}",
         f"Sel={selection}",
         f"PrNm={program}",
-        f"StSt=1",
+        "StSt=1",
     ]
-    if temp is not None:
-        parts.append(f"Temp={temp}")
-    if soil_level is not None:
-        parts.append(f"SLevTgt={soil_level}")
+    if temp_target is not None:
+        parts.append(f"TmpTgt={temp_target}")
+    if temp_default is not None:
+        parts.append(f"TmpDf={temp_default}")
     if spin_target is not None:
         parts.append(f"SpdTgt={spin_target}")
     if spin_default is not None:
         parts.append(f"SpdDef={spin_default}")
+    parts.append(f"OptMsk={opt_mask}")
     parts.append(f"Stm={steam}")
     parts.append(f"RecipeId={recipe_id}")
     parts.append(f"CheckUpState={check_up_state}")

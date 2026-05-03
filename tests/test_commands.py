@@ -11,7 +11,7 @@ from custom_components.candy.client.commands import (tumble_dryer_pause,
 
 def test_wm_start_minimal():
     assert washing_machine_start(program=4) == (
-        "Write=1&Pa=0&Sel=0&PrNm=4&StSt=1&Stm=0&RecipeId=0&CheckUpState=0"
+        "Write=1&Pa=0&Sel=0&PrNm=4&StSt=1&OptMsk=0&Stm=0&RecipeId=0&CheckUpState=0"
     )
 
 
@@ -19,16 +19,19 @@ def test_wm_start_with_options():
     assert washing_machine_start(
         program=13, spin_target=15, spin_default=10
     ) == (
-        "Write=1&Pa=0&Sel=0&PrNm=13&StSt=1&SpdTgt=15&SpdDef=10&Stm=0&RecipeId=0&CheckUpState=0"
+        "Write=1&Pa=0&Sel=0&PrNm=13&StSt=1&SpdTgt=15&SpdDef=10&OptMsk=0&Stm=0&RecipeId=0&CheckUpState=0"
     )
 
 
-def test_wm_start_with_temp_and_soil():
+def test_wm_start_verified_capture():
+    # Captured from Simply-Fi app: Resistant Cottons, 90°C / default 60°C,
+    # spin 1300rpm / default 1000rpm, steam=High, OptMsk=67 (prewash+hygiene+3 extra rinses)
     assert washing_machine_start(
-        program=13, temp=40, soil_level=2, spin_target=15, spin_default=10
+        program=13, temp_target=90, temp_default=60, spin_target=13, spin_default=10,
+        opt_mask=67, steam=2,
     ) == (
-        "Write=1&Pa=0&Sel=0&PrNm=13&StSt=1&Temp=40&SLevTgt=2&SpdTgt=15&SpdDef=10"
-        "&Stm=0&RecipeId=0&CheckUpState=0"
+        "Write=1&Pa=0&Sel=0&PrNm=13&StSt=1&TmpTgt=90&TmpDf=60&SpdTgt=13&SpdDef=10"
+        "&OptMsk=67&Stm=2&RecipeId=0&CheckUpState=0"
     )
 
 
