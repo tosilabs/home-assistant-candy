@@ -91,7 +91,7 @@ class CandyWashingMachineSensor(CandyBaseSensor):
 
     @property
     def name(self) -> str:
-        return self.device_name()
+        return "Machine status"
 
     @property
     def unique_id(self) -> str:
@@ -139,7 +139,7 @@ class CandyWashCycleStatusSensor(CandyBaseSensor):
 
     @property
     def name(self) -> str:
-        return "Wash cycle status"
+        return "Phase"
 
     @property
     def unique_id(self) -> str:
@@ -165,7 +165,7 @@ class CandyWashRemainingTimeSensor(CandyBaseSensor):
 
     @property
     def name(self) -> str:
-        return "Wash cycle remaining time"
+        return "Time remaining"
 
     @property
     def unique_id(self) -> str:
@@ -198,7 +198,7 @@ class CandyTumbleDryerSensor(CandyBaseSensor):
 
     @property
     def name(self) -> str:
-        return self.device_name()
+        return "Machine status"
 
     @property
     def unique_id(self) -> str:
@@ -242,7 +242,7 @@ class CandyTumbleStatusSensor(CandyBaseSensor):
 
     @property
     def name(self) -> str:
-        return "Dryer cycle status"
+        return "Phase"
 
     @property
     def unique_id(self) -> str:
@@ -271,7 +271,7 @@ class CandyTumbleRemainingTimeSensor(CandyBaseSensor):
 
     @property
     def name(self) -> str:
-        return "Dryer cycle remaining time"
+        return "Time remaining"
 
     @property
     def unique_id(self) -> str:
@@ -304,7 +304,7 @@ class CandyOvenSensor(CandyBaseSensor):
 
     @property
     def name(self) -> str:
-        return self.device_name()
+        return "Machine status"
 
     @property
     def unique_id(self) -> str:
@@ -377,7 +377,7 @@ class CandyDishwasherSensor(CandyBaseSensor):
 
     @property
     def name(self) -> str:
-        return self.device_name()
+        return "Machine status"
 
     @property
     def unique_id(self) -> str:
@@ -513,7 +513,7 @@ class CandyWashSpinSensor(_WashSensorBase):
 
 class CandyWashSoilLevelSensor(_WashSensorBase):
     @property
-    def name(self) -> str: return "Soil level"
+    def name(self) -> str: return "Stain type"
 
     @property
     def unique_id(self) -> str:

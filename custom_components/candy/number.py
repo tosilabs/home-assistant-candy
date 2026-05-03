@@ -3,14 +3,14 @@ from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from .client.model import WashingMachineStatus
-from .const import (DATA_KEY_COORDINATOR, DATA_KEY_WM_SPIN, DATA_KEY_WM_TEMP,
-                    DEVICE_NAME_WASHING_MACHINE, DOMAIN,
+from .client.model import TumbleDryerStatus, WashingMachineStatus
+from .const import (DATA_KEY_COORDINATOR, DATA_KEY_TD_TIME, DATA_KEY_WM_SPIN, DATA_KEY_WM_TEMP,
+                    DEVICE_NAME_TUMBLE_DRYER, DEVICE_NAME_WASHING_MACHINE, DOMAIN,
                     SIGNAL_WM_PROGRAM_CHANGED, SUGGESTED_AREA_KITCHEN,
-                    UNIQUE_ID_WM_SPIN, UNIQUE_ID_WM_TEMP)
+                    SUGGESTED_AREA_BATHROOM, UNIQUE_ID_TD_TIME_NUMBER, UNIQUE_ID_WM_SPIN, UNIQUE_ID_WM_TEMP)
 
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities):
@@ -23,6 +23,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
             CandyWashTemperatureNumber(config_id, entry_data),
             CandyWashSpinSpeedNumber(config_id, entry_data),
         ])
+    elif isinstance(coordinator.data, TumbleDryerStatus):
+        async_add_entities([CandyTumbleTimeNumber(config_id, entry_data)])
 
 
 class _WashNumberBase(RestoreEntity, NumberEntity):
@@ -41,6 +43,8 @@ class _WashNumberBase(RestoreEntity, NumberEntity):
 
 
 class CandyWashTemperatureNumber(_WashNumberBase):
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.CONFIG
     _attr_icon = "mdi:thermometer"
     _attr_native_min_value = 0
     _attr_native_max_value = 90
@@ -58,7 +62,7 @@ class CandyWashTemperatureNumber(_WashNumberBase):
 
     @property
     def name(self) -> str:
-        return "Washing machine temperature"
+        return "Temperature"
 
     @property
     def native_value(self) -> float:
@@ -96,6 +100,8 @@ class CandyWashTemperatureNumber(_WashNumberBase):
 
 
 class CandyWashSpinSpeedNumber(_WashNumberBase):
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.CONFIG
     _attr_icon = "mdi:rotate-right"
     _attr_native_min_value = 0
     _attr_native_max_value = 1500
@@ -113,7 +119,7 @@ class CandyWashSpinSpeedNumber(_WashNumberBase):
 
     @property
     def name(self) -> str:
-        return "Washing machine spin speed"
+        return "Spin speed"
 
     @property
     def native_value(self) -> float:
@@ -148,3 +154,45 @@ class CandyWashSpinSpeedNumber(_WashNumberBase):
             self._value = float(prog.spin_target * 100)
             self._entry_data[DATA_KEY_WM_SPIN] = prog.spin_target
             self.async_write_ha_state()
+
+
+class CandyTumbleTimeNumber(RestoreEntity, NumberEntity):
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_icon = "mdi:timer-outline"
+    _attr_native_min_value = 30
+    _attr_native_max_value = 220
+    _attr_native_step = 10
+    _attr_native_unit_of_measurement = "min"
+    _attr_mode = NumberMode.BOX
+
+    def __init__(self, config_id: str, entry_data: dict):
+        self.config_id = config_id
+        self._entry_data = entry_data
+        self._value = 90.0
+
+    @property
+    def unique_id(self) -> str:
+        return UNIQUE_ID_TD_TIME_NUMBER.format(self.config_id)
+
+    @property
+    def name(self) -> str:
+        return "Drying in time"
+
+    @property
+    def native_value(self) -> float:
+        return self._value
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={(DOMAIN, self.config_id)},
+            name=DEVICE_NAME_TUMBLE_DRYER,
+            manufacturer="Candy",
+            suggested_area=SUGGESTED_AREA_BATHROOM,
+        )
+
+    async def async_set_native_value(self, value: float) -> None:
+        self._value = value
+        self._entry_data[DATA_KEY_TD_TIME] = int(value)
+        self.async_write_ha_state()

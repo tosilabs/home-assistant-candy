@@ -10,6 +10,8 @@ DATA_KEY_WM_TEMP = "wm_temp"
 DATA_KEY_WM_SPIN = "wm_spin"
 DATA_KEY_WM_SOIL = "wm_soil"
 DATA_KEY_WM_STEAM = "wm_steam"
+DATA_KEY_TD_DRY_LEVEL = "td_dry_level"
+DATA_KEY_TD_TIME = "td_time"
 
 # Dispatcher signal fired when user changes the WM program selection
 SIGNAL_WM_PROGRAM_CHANGED = "candy_{}_wm_program_changed"
@@ -61,6 +63,8 @@ UNIQUE_ID_WM_TEMP = "{0}-wm_temperature"
 UNIQUE_ID_WM_SPIN = "{0}-wm_spin_speed"
 UNIQUE_ID_WM_SOIL = "{0}-wm_soil_level"
 UNIQUE_ID_WM_STEAM = "{0}-wm_steam"
+UNIQUE_ID_TD_TIME_NUMBER = "{0}-td_time_number"
+UNIQUE_ID_TD_DRY_LEVEL_SELECT = "{0}-td_dry_level_select"
 
 # Read-only sensor unique IDs (separate from the writable number/select entities)
 UNIQUE_ID_WM_PROGRAM_SENSOR = "{0}-wm_program_sensor"
@@ -90,3 +94,11 @@ DEVICE_NAME_DISHWASHER = "Dishwasher"
 
 SUGGESTED_AREA_BATHROOM = "Bathroom"
 SUGGESTED_AREA_KITCHEN = "Kitchen"
+
+DATA_KEY_PLATFORMS_LOADED = "platforms_loaded"
+DATA_KEY_SETUP_RETRY_UNSUB = "setup_retry_unsub"
+
+DATA_KEY_WM_CATEGORY = "wm_category"
+DATA_KEY_TD_CATEGORY = "td_category"
+SIGNAL_WM_CATEGORY_CHANGED = "candy_{}_wm_category_changed"
+SIGNAL_TD_CATEGORY_CHANGED = "candy_{}_td_category_changed"

@@ -138,6 +138,7 @@ class CandyWashStartButton(_WashBase):
             spin_target=spin,
             spin_default=prog.spin_default,
             steam=steam,
+            opt_mask=prog.opt_mask,
         )
         self._entry_data[DATA_KEY_LAST_PROGRAM] = prog.program
         await _send(self._client, plaintext)
@@ -261,11 +262,13 @@ class CandyTumbleStartButton(_TumbleBase):
         prog = TUMBLE_DRYER_PROGRAMS_BY_NAME.get(program_name)
         if prog is None:
             raise HomeAssistantError(f"Unknown program: {program_name}")
+        dry_level = self._entry_data.get(DATA_KEY_TD_DRY_LEVEL, prog.dry_level)
+        dry_time = self._entry_data.get(DATA_KEY_TD_TIME, prog.time)
         plaintext = tumble_dryer_start(
             program=prog.program,
-            time=prog.time,
+            time=dry_time,
             opt_mask=prog.opt_mask,
-            dry_level=prog.dry_level,
+            dry_level=dry_level,
             selection=prog.selection,
             rapid=prog.rapid,
             pr_str=prog.name,
