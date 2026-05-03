@@ -1,11 +1,18 @@
 """Constants for the Candy integration."""
 
 DOMAIN = "candy"
-PLATFORMS = ["sensor", "button", "select"]
+PLATFORMS = ["sensor", "button", "select", "number"]
 
 DATA_KEY_COORDINATOR = "coordinator"
 DATA_KEY_CLIENT = "client"
 DATA_KEY_LAST_PROGRAM = "last_program"
+DATA_KEY_WM_TEMP = "wm_temp"
+DATA_KEY_WM_SPIN = "wm_spin"
+DATA_KEY_WM_SOIL = "wm_soil"
+DATA_KEY_WM_STEAM = "wm_steam"
+
+# Dispatcher signal fired when user changes the WM program selection
+SIGNAL_WM_PROGRAM_CHANGED = "candy_{}_wm_program_changed"
 
 CONF_INTEGRATION_TITLE = "Candy"
 CONF_KEY_USE_ENCRYPTION = "use_encryption"
@@ -49,6 +56,11 @@ UNIQUE_ID_TUMBLE_START_BUTTON = "{0}-tumble_start_button"
 UNIQUE_ID_TUMBLE_PAUSE_BUTTON = "{0}-tumble_pause_button"
 UNIQUE_ID_TUMBLE_RESUME_BUTTON = "{0}-tumble_resume_button"
 UNIQUE_ID_TUMBLE_STOP_BUTTON = "{0}-tumble_stop_button"
+
+UNIQUE_ID_WM_TEMP = "{0}-wm_temperature"
+UNIQUE_ID_WM_SPIN = "{0}-wm_spin_speed"
+UNIQUE_ID_WM_SOIL = "{0}-wm_soil_level"
+UNIQUE_ID_WM_STEAM = "{0}-wm_steam"
 
 UNIQUE_ID_OVEN = "{0}-oven"
 UNIQUE_ID_OVEN_TEMP = "{0}-oven-temp"

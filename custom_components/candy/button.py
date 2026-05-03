@@ -20,6 +20,9 @@ from .programs import (TUMBLE_DRYER_PROGRAMS_BY_NAME,
                        WASHING_MACHINE_PROGRAMS_BY_NAME)
 from .select import UNIQUE_ID_TD_PROGRAM_SELECT, UNIQUE_ID_WM_PROGRAM_SELECT
 
+# sentinel – means "use the program's own default"
+_USE_PROGRAM_DEFAULT = object()
+
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities):
     config_id = config_entry.entry_id
@@ -95,11 +98,8 @@ class CandyWashStartButton(_WashBase):
     def icon(self) -> str: return "mdi:play"
 
     async def async_press(self) -> None:
-        select_uid = UNIQUE_ID_WM_PROGRAM_SELECT.format(self.config_id)
-        entity_reg = self._hass.data.get("entity_registry") or \
-            __import__("homeassistant.helpers.entity_registry", fromlist=["async_get"]).async_get(self._hass)
-        # Get selected program name from the select entity state
         from homeassistant.helpers import entity_registry as er
+        select_uid = UNIQUE_ID_WM_PROGRAM_SELECT.format(self.config_id)
         registry = er.async_get(self._hass)
         entry = registry.async_get_entity_id("select", DOMAIN, select_uid)
         if entry is None:
@@ -111,13 +111,23 @@ class CandyWashStartButton(_WashBase):
         prog = WASHING_MACHINE_PROGRAMS_BY_NAME.get(program_name)
         if prog is None:
             raise HomeAssistantError(f"Unknown program: {program_name}")
+        # Apply user overrides from the number/select entities when set
+        temp = self._entry_data.get(DATA_KEY_WM_TEMP, prog.temp)
+        spin = self._entry_data.get(DATA_KEY_WM_SPIN, prog.spin_target)
+        # DATA_KEY_WM_SOIL stores None (for "no soil") or 1/2/3
+        soil_key = DATA_KEY_WM_SOIL
+        soil = self._entry_data[soil_key] if soil_key in self._entry_data else prog.soil_level
+        steam = self._entry_data.get(DATA_KEY_WM_STEAM, prog.steam)
+        if steam is None:
+            steam = prog.steam
+
         plaintext = washing_machine_start(
             program=prog.program,
-            temp=prog.temp,
-            spin_target=prog.spin_target,
-            spin_default=prog.spin_default,
-            soil_level=prog.soil_level,
-            steam=prog.steam,
+            temp=temp,
+            spin_target=spin,
+            spin_default=spin,
+            soil_level=soil,
+            steam=steam,
         )
         self._entry_data[DATA_KEY_LAST_PROGRAM] = prog.program
         await _send(self._client, plaintext)

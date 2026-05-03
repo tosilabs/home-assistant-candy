@@ -30,6 +30,7 @@ WASHING_MACHINE_PROGRAMS: list[WashProgram] = [
     WashProgram("Delicates", program=10, temp=40, spin_target=4, spin_default=4, steam=1),
     WashProgram("Synthetics", program=11, temp=40, soil_level=3, spin_target=10, spin_default=10, steam=1),
     WashProgram("Cottons", program=12, temp=40, soil_level=3, spin_target=15, spin_default=15, steam=2),
+    WashProgram("Whites", program=12, temp=90, soil_level=3, spin_target=14, spin_default=14, steam=2),
     WashProgram("Resistant Cottons", program=13, temp=60, soil_level=3, spin_target=15, spin_default=10, steam=2),
     WashProgram("Mixed + Easy Iron", program=14, temp=30, soil_level=1, spin_target=10, spin_default=10),
     WashProgram("Smart Fi Plus", program=15, temp=90, soil_level=1, spin_target=4, spin_default=4),
