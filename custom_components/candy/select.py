@@ -10,8 +10,8 @@ from homeassistant.helpers.restore_state import RestoreEntity
 from .client.model import TumbleDryerStatus, WashingMachineStatus
 from .const import (DATA_KEY_COORDINATOR, DATA_KEY_TD_CATEGORY, DATA_KEY_TD_DRY_LEVEL, DATA_KEY_WM_CATEGORY, DATA_KEY_WM_SOIL, DATA_KEY_WM_STEAM,
                     DEVICE_NAME_TUMBLE_DRYER, DEVICE_NAME_WASHING_MACHINE, DOMAIN,
-                    SIGNAL_TD_CATEGORY_CHANGED, SIGNAL_WM_CATEGORY_CHANGED, SIGNAL_WM_PROGRAM_CHANGED, SUGGESTED_AREA_BATHROOM,
-                    SUGGESTED_AREA_KITCHEN, UNIQUE_ID_TD_DRY_LEVEL_SELECT, UNIQUE_ID_WM_SOIL, UNIQUE_ID_WM_STEAM)
+                    SIGNAL_WM_PROGRAM_CHANGED, SUGGESTED_AREA_BATHROOM,
+                    SUGGESTED_AREA_KITCHEN, UNIQUE_ID_WM_SOIL, UNIQUE_ID_WM_STEAM)
 from .programs import (TUMBLE_DRYER_PROGRAMS,
                        TUMBLE_DRYER_PROGRAM_DESCRIPTIONS_SQ,
                        TUMBLE_DRYER_PROGRAM_META_SQ,
@@ -57,7 +57,6 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
 
 class CandyWashProgramSelect(RestoreEntity, SelectEntity):
     _attr_has_entity_name = True
-    _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, config_id: str, entry_data: dict):
         self.config_id = config_id
@@ -70,18 +69,11 @@ class CandyWashProgramSelect(RestoreEntity, SelectEntity):
 
     @property
     def name(self) -> str:
-        return "Program"
+        return "01 Program"
 
     @property
     def options(self) -> list[str]:
-        category = self._entry_data.get(DATA_KEY_WM_CATEGORY, "1. Cycles")
-        opts = [
-            p.name for p in WASHING_MACHINE_PROGRAMS
-            if WASHING_MACHINE_PROGRAM_META_SQ.get(p.name, {}).get("category") == category
-        ]
-        if not opts:
-            opts = [p.name for p in WASHING_MACHINE_PROGRAMS]
-        return sorted(opts, key=str.casefold)
+        return sorted((p.name for p in WASHING_MACHINE_PROGRAMS), key=str.casefold)
 
     @property
     def current_option(self) -> str:
@@ -204,7 +196,6 @@ class CandyWashCategorySelect(RestoreEntity, SelectEntity):
 
 class CandyWashSoilLevelSelect(RestoreEntity, SelectEntity):
     _attr_has_entity_name = True
-    _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, config_id: str, entry_data: dict):
         self.config_id = config_id
@@ -217,7 +208,7 @@ class CandyWashSoilLevelSelect(RestoreEntity, SelectEntity):
 
     @property
     def name(self) -> str:
-        return "Soil level"
+        return "03 Soil level"
 
     @property
     def options(self) -> list[str]:
@@ -272,7 +263,6 @@ class CandyWashSoilLevelSelect(RestoreEntity, SelectEntity):
 
 class CandyWashSteamSelect(RestoreEntity, SelectEntity):
     _attr_has_entity_name = True
-    _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, config_id: str, entry_data: dict):
         self.config_id = config_id
@@ -285,7 +275,7 @@ class CandyWashSteamSelect(RestoreEntity, SelectEntity):
 
     @property
     def name(self) -> str:
-        return "Steam"
+        return "04 Steam"
 
     @property
     def options(self) -> list[str]:
@@ -394,7 +384,6 @@ class CandyTumbleCategorySelect(RestoreEntity, SelectEntity):
 
 class CandyTumbleProgramSelect(RestoreEntity, SelectEntity):
     _attr_has_entity_name = True
-    _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, config_id: str, entry_data: dict):
         self.config_id = config_id
@@ -407,18 +396,11 @@ class CandyTumbleProgramSelect(RestoreEntity, SelectEntity):
 
     @property
     def name(self) -> str:
-        return "Program"
+        return "01 Program"
 
     @property
     def options(self) -> list[str]:
-        category = self._entry_data.get(DATA_KEY_TD_CATEGORY, "1. Cycles")
-        opts = [
-            p.name for p in TUMBLE_DRYER_PROGRAMS
-            if TUMBLE_DRYER_PROGRAM_META_SQ.get(p.name, {}).get("category") == category
-        ]
-        if not opts:
-            opts = [p.name for p in TUMBLE_DRYER_PROGRAMS]
-        return sorted(opts, key=str.casefold)
+        return sorted((p.name for p in TUMBLE_DRYER_PROGRAMS), key=str.casefold)
 
     @property
     def current_option(self) -> str:

@@ -62,7 +62,7 @@ class CandyWashTemperatureNumber(_WashNumberBase):
 
     @property
     def name(self) -> str:
-        return "Temperature"
+        return "02 Temperature"
 
     @property
     def native_value(self) -> float:
@@ -101,7 +101,6 @@ class CandyWashTemperatureNumber(_WashNumberBase):
 
 class CandyWashSpinSpeedNumber(_WashNumberBase):
     _attr_has_entity_name = True
-    _attr_entity_category = EntityCategory.CONFIG
     _attr_icon = "mdi:rotate-right"
     _attr_native_min_value = 0
     _attr_native_max_value = 1500
@@ -119,7 +118,7 @@ class CandyWashSpinSpeedNumber(_WashNumberBase):
 
     @property
     def name(self) -> str:
-        return "Spin speed"
+        return "05 Spin speed"
 
     @property
     def native_value(self) -> float:

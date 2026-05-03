@@ -97,8 +97,3 @@ SUGGESTED_AREA_KITCHEN = "Kitchen"
 
 DATA_KEY_PLATFORMS_LOADED = "platforms_loaded"
 DATA_KEY_SETUP_RETRY_UNSUB = "setup_retry_unsub"
-
-DATA_KEY_WM_CATEGORY = "wm_category"
-DATA_KEY_TD_CATEGORY = "td_category"
-SIGNAL_WM_CATEGORY_CHANGED = "candy_{}_wm_category_changed"
-SIGNAL_TD_CATEGORY_CHANGED = "candy_{}_td_category_changed"
