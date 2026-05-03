@@ -114,7 +114,7 @@ def tumble_dryer_start(
     if dry_level_target is not None:
         parts.append(f"DryingManagerLevel={dry_level_target}")
     parts.append(f"Rapido={rapid}")
-    parts.append(f"RecipeId=0")
+    parts.append("RecipeId=NULL")
     parts.append(f"CheckUpState={check_up_state}")
     return "&".join(parts)
 
