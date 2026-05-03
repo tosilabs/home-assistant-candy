@@ -46,26 +46,26 @@ WASHING_MACHINE_PROGRAMS_BY_NAME: dict[str, WashProgram] = {
 class TumbleDryerProgram:
     name: str
     program: int
-    dry_level: Optional[int] = None
-    dry_level_target: Optional[int] = None
+    time: int = 0      # max_time_level from Simply-Fi backend → Time in START command
+    opt_mask: int = 0  # mask1 from Simply-Fi backend → OptMsk in START command
 
 
 TUMBLE_DRYER_PROGRAMS: list[TumbleDryerProgram] = [
-    TumbleDryerProgram("Whites", program=1, dry_level=2),
-    TumbleDryerProgram("Eco", program=2, dry_level=2),
-    TumbleDryerProgram("Whites Plus", program=3, dry_level=2),
-    TumbleDryerProgram("Jeans", program=4, dry_level=4),
-    TumbleDryerProgram("Darks & Coloured", program=5, dry_level=2),
-    TumbleDryerProgram("Synthetics", program=6, dry_level=2),
-    TumbleDryerProgram("Shirts", program=7, dry_level=2),
+    TumbleDryerProgram("Whites", program=1, time=20, opt_mask=20),
+    TumbleDryerProgram("Eco", program=2, time=0, opt_mask=0),
+    TumbleDryerProgram("Whites Plus", program=3, time=20, opt_mask=20),
+    TumbleDryerProgram("Jeans", program=4, time=0, opt_mask=0),
+    TumbleDryerProgram("Darks & Coloured", program=5, time=0, opt_mask=20),
+    TumbleDryerProgram("Synthetics", program=6, time=13, opt_mask=20),
+    TumbleDryerProgram("Shirts", program=7, time=0, opt_mask=20),
     TumbleDryerProgram("Woolmark", program=8),
-    TumbleDryerProgram("Daily Perfect 59'", program=9, dry_level=2),
+    TumbleDryerProgram("Daily Perfect 59'", program=9),
     TumbleDryerProgram("Daily 45 min", program=10),
     TumbleDryerProgram("Saving 30 min", program=11),
     TumbleDryerProgram("Refresh", program=12),
     TumbleDryerProgram("Relax Creases", program=13),
-    TumbleDryerProgram("Sport Plus", program=14, dry_level=3),
-    TumbleDryerProgram("Small Load", program=15, dry_level=3),
+    TumbleDryerProgram("Sport Plus", program=14),
+    TumbleDryerProgram("Small Load", program=15),
 ]
 
 TUMBLE_DRYER_PROGRAMS_BY_NAME: dict[str, TumbleDryerProgram] = {

@@ -89,9 +89,6 @@ WM_STOP_SCHEMA = _target_required({
 
 TD_START_SCHEMA = _target_required({
     vol.Required(ATTR_PROGRAM): vol.All(int, vol.Range(min=0)),
-    vol.Optional(ATTR_DRY_LEVEL): vol.All(int, vol.Range(min=0)),
-    vol.Optional(ATTR_DRY_LEVEL_TARGET): vol.All(int, vol.Range(min=0)),
-    vol.Optional(ATTR_RAPID, default=0): vol.All(int, vol.Range(min=0, max=1)),
 })
 
 TD_STOP_SCHEMA = _target_required({
@@ -268,12 +265,7 @@ def _async_register_services(hass: HomeAssistant) -> None:
 
     async def handle_td_start(call: ServiceCall) -> None:
         program = call.data[ATTR_PROGRAM]
-        plaintext = tumble_dryer_start(
-            program=program,
-            dry_level=call.data.get(ATTR_DRY_LEVEL),
-            dry_level_target=call.data.get(ATTR_DRY_LEVEL_TARGET),
-            rapid=call.data.get(ATTR_RAPID, 0),
-        )
+        plaintext = tumble_dryer_start(program=program)
         entry_id = _resolve_entry_id(hass, call)
         _get_entry_data(hass, entry_id)[DATA_KEY_LAST_PROGRAM] = program
         await _send_plaintext(hass, entry_id, plaintext)

@@ -223,8 +223,9 @@ class CandyTumbleStartButton(_TumbleBase):
             raise HomeAssistantError(f"Unknown program: {program_name}")
         plaintext = tumble_dryer_start(
             program=prog.program,
-            dry_level=prog.dry_level,
-            dry_level_target=prog.dry_level_target,
+            time=prog.time,
+            opt_mask=prog.opt_mask,
+            pr_str=prog.name,
         )
         self._entry_data[DATA_KEY_LAST_PROGRAM] = prog.program
         await _send(self._client, plaintext)

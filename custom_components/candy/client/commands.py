@@ -76,55 +76,35 @@ def washing_machine_resume() -> str:
     return "Write=1&Pa=0"
 
 
-# -----------------------------------------------------------------------------
-# Tumble dryer command builders.
-#
-# These are best-effort, NOT verified against captured commands. They mirror
-# the washing machine pattern but use the field names observed in tumble dryer
-# status responses: Pr (vs PrNm), DryLev, DryingManagerLevel, Rapido,
-# RecipeId=NULL (string, not 0). If something doesn't work for your model,
-# capture a real command from the official app and replay via send_raw_command.
-# -----------------------------------------------------------------------------
-
 def tumble_dryer_start(
     program: int,
-    dry_level: Optional[int] = None,
-    dry_level_target: Optional[int] = None,
-    rapid: int = 0,
-    pause: int = 0,
-    selection: int = 0,
-    check_up_state: int = 0,
+    time: int = 0,
+    opt_mask: int = 0,
+    pr_str: str = "",
+    recipe_id: str = "0",
 ) -> str:
     """
-    Best-effort START plaintext for Candy tumble dryers.
+    Build a Candy tumble dryer START plaintext command.
 
-    Inferred template:
-        Write=1&Pa=0&Sel=0&Pr=<N>&StSt=1[&DryLev=<L>][&DryingManagerLevel=<L>]
-        &Rapido=0&RecipeId=NULL&CheckUpState=0
+    Verified format (captured from Simply-Fi app, Whites program):
+        Write=1&PrNm=1&Time=20&OptMsk=20&RecipeId=2ciC2s&PrStr=Whites&StSt=1
+    RecipeId is a server-generated short hash; "0" is used as a local placeholder.
+    Time = max_time_level, OptMsk = mask1 from the Simply-Fi backend programme data.
     """
-    parts = [
-        "Write=1",
-        f"Pa={pause}",
-        f"Sel={selection}",
-        f"Pr={program}",
-        "StSt=1",
-    ]
-    if dry_level is not None:
-        parts.append(f"DryLev={dry_level}")
-    if dry_level_target is not None:
-        parts.append(f"DryingManagerLevel={dry_level_target}")
-    parts.append(f"Rapido={rapid}")
-    parts.append("RecipeId=NULL")
-    parts.append(f"CheckUpState={check_up_state}")
-    return "&".join(parts)
+    return (
+        f"Write=1&PrNm={program}&Time={time}&OptMsk={opt_mask}"
+        f"&RecipeId={recipe_id}&PrStr={pr_str}&StSt=1"
+    )
 
 
 def tumble_dryer_stop(program: int) -> str:
     """
-    Best-effort STOP plaintext for Candy tumble dryers.
-    Inferred from washing machine STOP pattern with `Pr` instead of `PrNm`.
+    Build a Candy tumble dryer STOP plaintext command.
+
+    Verified format (captured from Simply-Fi app):
+        Write=1&StSt=0&PrNm=1
     """
-    return f"Write=1&StSt=0&DelVal=0&Pr={program}"
+    return f"Write=1&StSt=0&PrNm={program}"
 
 
 def tumble_dryer_pause() -> str:
