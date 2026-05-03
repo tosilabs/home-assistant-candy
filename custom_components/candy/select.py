@@ -2,6 +2,7 @@
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.restore_state import RestoreEntity
@@ -42,6 +43,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
 
 
 class CandyWashProgramSelect(RestoreEntity, SelectEntity):
+    _attr_has_entity_name = True
 
     def __init__(self, config_id: str):
         self.config_id = config_id
@@ -53,11 +55,11 @@ class CandyWashProgramSelect(RestoreEntity, SelectEntity):
 
     @property
     def name(self) -> str:
-        return "Washing machine program"
+        return "01 Program"
 
     @property
     def options(self) -> list[str]:
-        return [p.name for p in WASHING_MACHINE_PROGRAMS]
+        return sorted((p.name for p in WASHING_MACHINE_PROGRAMS), key=str.casefold)
 
     @property
     def current_option(self) -> str:
@@ -96,6 +98,7 @@ class CandyWashProgramSelect(RestoreEntity, SelectEntity):
 
 
 class CandyWashSoilLevelSelect(RestoreEntity, SelectEntity):
+    _attr_has_entity_name = True
 
     def __init__(self, config_id: str, entry_data: dict):
         self.config_id = config_id
@@ -108,7 +111,7 @@ class CandyWashSoilLevelSelect(RestoreEntity, SelectEntity):
 
     @property
     def name(self) -> str:
-        return "Washing machine soil level"
+        return "03 Soil level"
 
     @property
     def options(self) -> list[str]:
@@ -132,6 +135,8 @@ class CandyWashSoilLevelSelect(RestoreEntity, SelectEntity):
         )
 
     async def async_select_option(self, option: str) -> None:
+        if option not in _SOIL_TO_VALUE:
+            raise HomeAssistantError(f"Invalid soil option: {option}")
         self._current = option
         self._entry_data[DATA_KEY_WM_SOIL] = _SOIL_TO_VALUE[option]
         self.async_write_ha_state()
@@ -160,6 +165,7 @@ class CandyWashSoilLevelSelect(RestoreEntity, SelectEntity):
 
 
 class CandyWashSteamSelect(RestoreEntity, SelectEntity):
+    _attr_has_entity_name = True
 
     def __init__(self, config_id: str, entry_data: dict):
         self.config_id = config_id
@@ -172,7 +178,7 @@ class CandyWashSteamSelect(RestoreEntity, SelectEntity):
 
     @property
     def name(self) -> str:
-        return "Washing machine steam"
+        return "04 Steam"
 
     @property
     def options(self) -> list[str]:
@@ -196,6 +202,8 @@ class CandyWashSteamSelect(RestoreEntity, SelectEntity):
         )
 
     async def async_select_option(self, option: str) -> None:
+        if option not in _STEAM_TO_VALUE:
+            raise HomeAssistantError(f"Invalid steam option: {option}")
         self._current = option
         self._entry_data[DATA_KEY_WM_STEAM] = _STEAM_TO_VALUE[option]
         self.async_write_ha_state()
@@ -224,6 +232,7 @@ class CandyWashSteamSelect(RestoreEntity, SelectEntity):
 
 
 class CandyTumbleProgramSelect(RestoreEntity, SelectEntity):
+    _attr_has_entity_name = True
 
     def __init__(self, config_id: str):
         self.config_id = config_id
@@ -235,11 +244,11 @@ class CandyTumbleProgramSelect(RestoreEntity, SelectEntity):
 
     @property
     def name(self) -> str:
-        return "Tumble dryer program"
+        return "01 Program"
 
     @property
     def options(self) -> list[str]:
-        return [p.name for p in TUMBLE_DRYER_PROGRAMS]
+        return sorted((p.name for p in TUMBLE_DRYER_PROGRAMS), key=str.casefold)
 
     @property
     def current_option(self) -> str:
