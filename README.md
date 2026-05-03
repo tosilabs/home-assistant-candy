@@ -1,5 +1,7 @@
 # Candy / Hoover Simply‑Fi për Home Assistant
 
+**Ky README është i shkruar në shqip**, i përshtatur për përdorim praktik në Home Assistant.
+
 > Ky projekt është një **fork/përshtatje** e integrimit origjinal të krijuar nga **@ofalvai**.  
 > Repo origjinale: https://github.com/ofalvai/home-assistant-candy
 
