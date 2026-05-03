@@ -115,11 +115,16 @@ class CandyWashStopButton(_WashBase):
 
     async def async_press(self) -> None:
         status: WashingMachineStatus = self.coordinator.data
-        if not isinstance(status, WashingMachineStatus) or status.program is None:
+        if not isinstance(status, WashingMachineStatus):
+            raise HomeAssistantError("Cannot stop: status not available")
+        program = status.program
+        if program is None and status.program_type is not None:
+            program = status.program_type.code
+        if program is None:
             raise HomeAssistantError(
                 "Cannot stop: current program unknown — call washing_machine_stop service with explicit program"
             )
-        await _send(self._client, washing_machine_stop(status.program))
+        await _send(self._client, washing_machine_stop(program))
 
 
 class _TumbleBase(CandyBaseButton):

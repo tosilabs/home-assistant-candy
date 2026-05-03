@@ -245,11 +245,17 @@ def _async_register_services(hass: HomeAssistant) -> None:
         if program is None:
             entry_data = _get_entry_data(hass, _resolve_entry_id(hass, call))
             status = entry_data[DATA_KEY_COORDINATOR].data
-            if not isinstance(status, WashingMachineStatus) or status.program is None:
+            if not isinstance(status, WashingMachineStatus):
                 raise HomeAssistantError(
                     "Cannot determine current program — pass `program:` explicitly"
                 )
             program = status.program
+            if program is None and status.program_type is not None:
+                program = status.program_type.code
+            if program is None:
+                raise HomeAssistantError(
+                    "Cannot determine current program — pass `program:` explicitly"
+                )
         await _send_plaintext(hass, _resolve_entry_id(hass, call), washing_machine_stop(program))
 
     async def handle_wm_pause(call: ServiceCall) -> None:
