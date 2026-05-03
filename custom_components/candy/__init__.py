@@ -137,7 +137,10 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     _async_register_services(hass)
 
     async def _try_load_platforms() -> None:
-        entry_data = hass.data[DOMAIN][config_entry.entry_id]
+        domain_data = hass.data.get(DOMAIN, {})
+        entry_data = domain_data.get(config_entry.entry_id)
+        if entry_data is None:
+            return
         if entry_data[DATA_KEY_PLATFORMS_LOADED] or coordinator.data is None:
             return
         await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
@@ -159,6 +162,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
         @callback
         def _retry_setup(_now) -> None:
             async def _do_retry() -> None:
+                if config_entry.entry_id not in hass.data.get(DOMAIN, {}):
+                    return
                 await coordinator.async_refresh()
                 if coordinator.last_update_success and coordinator.data is not None:
                     await _try_load_platforms()
