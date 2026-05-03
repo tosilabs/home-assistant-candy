@@ -8,7 +8,7 @@ from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from .client.model import TumbleDryerStatus, WashingMachineStatus
-from .const import (DATA_KEY_COORDINATOR, DATA_KEY_TD_CATEGORY, DATA_KEY_TD_DRY_LEVEL, DATA_KEY_WM_CATEGORY, DATA_KEY_WM_SOIL, DATA_KEY_WM_STEAM,
+from .const import (DATA_KEY_COORDINATOR, DATA_KEY_TD_DRY_LEVEL, DATA_KEY_WM_SOIL, DATA_KEY_WM_STEAM,
                     DEVICE_NAME_TUMBLE_DRYER, DEVICE_NAME_WASHING_MACHINE, DOMAIN,
                     SIGNAL_WM_PROGRAM_CHANGED, SUGGESTED_AREA_BATHROOM,
                     SUGGESTED_AREA_KITCHEN, UNIQUE_ID_WM_SOIL, UNIQUE_ID_WM_STEAM)
@@ -19,6 +19,15 @@ from .programs import (TUMBLE_DRYER_PROGRAMS,
                        WASHING_MACHINE_PROGRAMS_BY_NAME,
                        WASHING_MACHINE_PROGRAM_DESCRIPTIONS_SQ,
                        WASHING_MACHINE_PROGRAM_META_SQ)
+
+
+# Local fallback keys/signals used by select entities.
+# Kept local to avoid hard startup failures if const.py in deployed instances
+# is temporarily out-of-sync with select.py.
+DATA_KEY_WM_CATEGORY = "wm_category"
+DATA_KEY_TD_CATEGORY = "td_category"
+SIGNAL_WM_CATEGORY_CHANGED = "candy_{}_wm_category_changed"
+SIGNAL_TD_CATEGORY_CHANGED = "candy_{}_td_category_changed"
 
 UNIQUE_ID_WM_PROGRAM_SELECT = "{0}-wm_program_select"
 UNIQUE_ID_TD_PROGRAM_SELECT = "{0}-td_program_select"
