@@ -90,3 +90,6 @@ DEVICE_NAME_DISHWASHER = "Dishwasher"
 
 SUGGESTED_AREA_BATHROOM = "Bathroom"
 SUGGESTED_AREA_KITCHEN = "Kitchen"
+
+DATA_KEY_PLATFORMS_LOADED = "platforms_loaded"
+DATA_KEY_SETUP_RETRY_UNSUB = "setup_retry_unsub"

@@ -10,11 +10,12 @@ import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_IP_ADDRESS, CONF_PASSWORD
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from .client import CandyClient
 from .client.commands import (tumble_dryer_pause, tumble_dryer_resume,
@@ -125,17 +126,52 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
         update_method=update_status,
     )
 
-    await coordinator.async_config_entry_first_refresh()
-
     hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {
         DATA_KEY_COORDINATOR: coordinator,
         DATA_KEY_CLIENT: client,
         DATA_KEY_LAST_PROGRAM: None,
+        DATA_KEY_PLATFORMS_LOADED: False,
+        DATA_KEY_SETUP_RETRY_UNSUB: None,
     }
 
-    await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
-
     _async_register_services(hass)
+
+    async def _try_load_platforms() -> None:
+        domain_data = hass.data.get(DOMAIN, {})
+        entry_data = domain_data.get(config_entry.entry_id)
+        if entry_data is None:
+            return
+        if entry_data[DATA_KEY_PLATFORMS_LOADED] or coordinator.data is None:
+            return
+        await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
+        entry_data[DATA_KEY_PLATFORMS_LOADED] = True
+        unsub = entry_data.get(DATA_KEY_SETUP_RETRY_UNSUB)
+        if unsub:
+            unsub()
+            entry_data[DATA_KEY_SETUP_RETRY_UNSUB] = None
+
+    await coordinator.async_refresh()
+    if coordinator.last_update_success and coordinator.data is not None:
+        await _try_load_platforms()
+    else:
+        _LOGGER.warning(
+            "Initial Candy status fetch failed (device may be off/unreachable). "
+            "Will keep retrying in background without failing setup."
+        )
+
+        @callback
+        def _retry_setup(_now) -> None:
+            async def _do_retry() -> None:
+                if config_entry.entry_id not in hass.data.get(DOMAIN, {}):
+                    return
+                await coordinator.async_refresh()
+                if coordinator.last_update_success and coordinator.data is not None:
+                    await _try_load_platforms()
+            hass.async_create_task(_do_retry())
+
+        hass.data[DOMAIN][config_entry.entry_id][DATA_KEY_SETUP_RETRY_UNSUB] = async_track_time_interval(
+            hass, _retry_setup, timedelta(seconds=60)
+        )
 
     return True
 
@@ -144,6 +180,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
+        entry_data = hass.data[DOMAIN].get(entry.entry_id)
+        if entry_data:
+            unsub = entry_data.get(DATA_KEY_SETUP_RETRY_UNSUB)
+            if unsub:
+                unsub()
         hass.data[DOMAIN].pop(entry.entry_id, None)
         if not hass.data[DOMAIN]:
             for service in (SERVICE_SEND_COMMAND, SERVICE_SEND_RAW_COMMAND,

@@ -3,7 +3,7 @@ from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from .client.model import WashingMachineStatus
@@ -42,6 +42,7 @@ class _WashNumberBase(RestoreEntity, NumberEntity):
 
 class CandyWashTemperatureNumber(_WashNumberBase):
     _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.CONFIG
     _attr_icon = "mdi:thermometer"
     _attr_native_min_value = 0
     _attr_native_max_value = 90
