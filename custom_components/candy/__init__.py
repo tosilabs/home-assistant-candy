@@ -13,6 +13,7 @@ from homeassistant.const import CONF_IP_ADDRESS, CONF_PASSWORD
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from .client import CandyClient
@@ -36,28 +37,44 @@ def _hex_string(value: object) -> str:
     return s
 
 
-SEND_COMMAND_SCHEMA = vol.Schema({
-    vol.Required("entry_id"): cv.string,
+def _target_required(schema: dict) -> vol.Schema:
+    """Schema where the call must include either device_id (HA target) or entry_id."""
+    base = {
+        vol.Optional("entry_id"): cv.string,
+        vol.Optional("device_id"): vol.All(cv.ensure_list, [cv.string]),
+        vol.Optional("area_id"): vol.All(cv.ensure_list, [cv.string]),
+        vol.Optional("entity_id"): vol.All(cv.ensure_list, [cv.string]),
+    }
+    base.update(schema)
+    return vol.All(
+        vol.Schema(base, extra=vol.ALLOW_EXTRA),
+        _require_target,
+    )
+
+
+def _require_target(value: dict) -> dict:
+    if not value.get("entry_id") and not value.get("device_id"):
+        raise vol.Invalid("Either `device_id` (target) or `entry_id` must be provided")
+    return value
+
+
+SEND_COMMAND_SCHEMA = _target_required({
     vol.Required(ATTR_PARAMS): vol.Schema({cv.string: vol.Any(cv.string, int)}),
 })
 
-SEND_RAW_COMMAND_SCHEMA = vol.Schema({
-    vol.Required("entry_id"): cv.string,
+SEND_RAW_COMMAND_SCHEMA = _target_required({
     vol.Required(ATTR_DATA): _hex_string,
 })
 
-SEND_PLAINTEXT_COMMAND_SCHEMA = vol.Schema({
-    vol.Required("entry_id"): cv.string,
+SEND_PLAINTEXT_COMMAND_SCHEMA = _target_required({
     vol.Required(ATTR_PLAINTEXT): cv.string,
 })
 
-DECRYPT_DATA_SCHEMA = vol.Schema({
-    vol.Required("entry_id"): cv.string,
+DECRYPT_DATA_SCHEMA = _target_required({
     vol.Required(ATTR_DATA): _hex_string,
 })
 
-WM_START_SCHEMA = vol.Schema({
-    vol.Required("entry_id"): cv.string,
+WM_START_SCHEMA = _target_required({
     vol.Required(ATTR_PROGRAM): vol.All(int, vol.Range(min=0)),
     vol.Optional(ATTR_TEMP): vol.All(int, vol.Range(min=0)),
     vol.Optional(ATTR_SPIN_TARGET): vol.All(int, vol.Range(min=0)),
@@ -66,27 +83,22 @@ WM_START_SCHEMA = vol.Schema({
     vol.Optional(ATTR_STEAM, default=0): vol.All(int, vol.Range(min=0, max=1)),
 })
 
-WM_STOP_SCHEMA = vol.Schema({
-    vol.Required("entry_id"): cv.string,
+WM_STOP_SCHEMA = _target_required({
     vol.Optional(ATTR_PROGRAM): vol.All(int, vol.Range(min=0)),
 })
 
-TD_START_SCHEMA = vol.Schema({
-    vol.Required("entry_id"): cv.string,
+TD_START_SCHEMA = _target_required({
     vol.Required(ATTR_PROGRAM): vol.All(int, vol.Range(min=0)),
     vol.Optional(ATTR_DRY_LEVEL): vol.All(int, vol.Range(min=0)),
     vol.Optional(ATTR_DRY_LEVEL_TARGET): vol.All(int, vol.Range(min=0)),
     vol.Optional(ATTR_RAPID, default=0): vol.All(int, vol.Range(min=0, max=1)),
 })
 
-TD_STOP_SCHEMA = vol.Schema({
-    vol.Required("entry_id"): cv.string,
+TD_STOP_SCHEMA = _target_required({
     vol.Optional(ATTR_PROGRAM): vol.All(int, vol.Range(min=0)),
 })
 
-ENTRY_ONLY_SCHEMA = vol.Schema({
-    vol.Required("entry_id"): cv.string,
-})
+ENTRY_ONLY_SCHEMA = _target_required({})
 
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
@@ -148,6 +160,36 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return unload_ok
 
 
+def _resolve_entry_id(hass: HomeAssistant, call: ServiceCall) -> str:
+    """Resolve the Candy config entry id from a service call.
+
+    Accepts either:
+      - explicit `entry_id` (legacy), or
+      - HA target `device_id` (preferred — populated by the device selector)
+
+    If multiple device_ids are passed, the first one that maps to a Candy entry wins.
+    """
+    explicit = call.data.get("entry_id")
+    if explicit:
+        return explicit
+
+    device_ids = call.data.get("device_id") or []
+    if device_ids:
+        registry = dr.async_get(hass)
+        for device_id in device_ids:
+            device = registry.async_get(device_id)
+            if device is None:
+                continue
+            for entry_id in device.config_entries:
+                if entry_id in hass.data.get(DOMAIN, {}):
+                    return entry_id
+
+    raise HomeAssistantError(
+        "No Candy device targeted. Pass `device_id` (via the device selector) "
+        "or `entry_id` explicitly."
+    )
+
+
 def _get_entry_data(hass: HomeAssistant, entry_id: str) -> dict:
     entry_data = hass.data.get(DOMAIN, {}).get(entry_id)
     if entry_data is None:
@@ -170,20 +212,20 @@ def _async_register_services(hass: HomeAssistant) -> None:
         return
 
     async def handle_send_command(call: ServiceCall) -> None:
-        client = _get_client(hass, call.data["entry_id"])
+        client = _get_client(hass, _resolve_entry_id(hass, call))
         await client.send_command(call.data[ATTR_PARAMS])
 
     async def handle_send_raw_command(call: ServiceCall) -> None:
-        client = _get_client(hass, call.data["entry_id"])
+        client = _get_client(hass, _resolve_entry_id(hass, call))
         await client.send_encrypted_data(call.data[ATTR_DATA])
 
     async def handle_send_plaintext_command(call: ServiceCall) -> None:
-        client = _get_client(hass, call.data["entry_id"])
+        client = _get_client(hass, _resolve_entry_id(hass, call))
         hex_blob = client.encrypt_command(call.data[ATTR_PLAINTEXT])
         await client.send_encrypted_data(hex_blob)
 
     async def handle_decrypt_data(call: ServiceCall) -> None:
-        client = _get_client(hass, call.data["entry_id"])
+        client = _get_client(hass, _resolve_entry_id(hass, call))
         plaintext = client.decrypt_data(call.data[ATTR_DATA])
         _LOGGER.warning("candy.decrypt_data result: %s", plaintext)
 
@@ -196,25 +238,25 @@ def _async_register_services(hass: HomeAssistant) -> None:
             soil_level=call.data.get(ATTR_SOIL_LEVEL),
             steam=call.data.get(ATTR_STEAM, 0),
         )
-        await _send_plaintext(hass, call.data["entry_id"], plaintext)
+        await _send_plaintext(hass, _resolve_entry_id(hass, call), plaintext)
 
     async def handle_wm_stop(call: ServiceCall) -> None:
         program = call.data.get(ATTR_PROGRAM)
         if program is None:
-            entry_data = _get_entry_data(hass, call.data["entry_id"])
+            entry_data = _get_entry_data(hass, _resolve_entry_id(hass, call))
             status = entry_data[DATA_KEY_COORDINATOR].data
             if not isinstance(status, WashingMachineStatus) or status.program is None:
                 raise HomeAssistantError(
                     "Cannot determine current program — pass `program:` explicitly"
                 )
             program = status.program
-        await _send_plaintext(hass, call.data["entry_id"], washing_machine_stop(program))
+        await _send_plaintext(hass, _resolve_entry_id(hass, call), washing_machine_stop(program))
 
     async def handle_wm_pause(call: ServiceCall) -> None:
-        await _send_plaintext(hass, call.data["entry_id"], washing_machine_pause())
+        await _send_plaintext(hass, _resolve_entry_id(hass, call), washing_machine_pause())
 
     async def handle_wm_resume(call: ServiceCall) -> None:
-        await _send_plaintext(hass, call.data["entry_id"], washing_machine_resume())
+        await _send_plaintext(hass, _resolve_entry_id(hass, call), washing_machine_resume())
 
     async def handle_td_start(call: ServiceCall) -> None:
         plaintext = tumble_dryer_start(
@@ -223,25 +265,25 @@ def _async_register_services(hass: HomeAssistant) -> None:
             dry_level_target=call.data.get(ATTR_DRY_LEVEL_TARGET),
             rapid=call.data.get(ATTR_RAPID, 0),
         )
-        await _send_plaintext(hass, call.data["entry_id"], plaintext)
+        await _send_plaintext(hass, _resolve_entry_id(hass, call), plaintext)
 
     async def handle_td_stop(call: ServiceCall) -> None:
         program = call.data.get(ATTR_PROGRAM)
         if program is None:
-            entry_data = _get_entry_data(hass, call.data["entry_id"])
+            entry_data = _get_entry_data(hass, _resolve_entry_id(hass, call))
             status = entry_data[DATA_KEY_COORDINATOR].data
             if not isinstance(status, TumbleDryerStatus):
                 raise HomeAssistantError(
                     "Cannot determine current program — pass `program:` explicitly"
                 )
             program = status.program
-        await _send_plaintext(hass, call.data["entry_id"], tumble_dryer_stop(program))
+        await _send_plaintext(hass, _resolve_entry_id(hass, call), tumble_dryer_stop(program))
 
     async def handle_td_pause(call: ServiceCall) -> None:
-        await _send_plaintext(hass, call.data["entry_id"], tumble_dryer_pause())
+        await _send_plaintext(hass, _resolve_entry_id(hass, call), tumble_dryer_pause())
 
     async def handle_td_resume(call: ServiceCall) -> None:
-        await _send_plaintext(hass, call.data["entry_id"], tumble_dryer_resume())
+        await _send_plaintext(hass, _resolve_entry_id(hass, call), tumble_dryer_resume())
 
     hass.services.async_register(
         DOMAIN, SERVICE_SEND_COMMAND, handle_send_command, schema=SEND_COMMAND_SCHEMA

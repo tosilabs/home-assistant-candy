@@ -4,14 +4,10 @@ send_command:
     Send key/value parameters as a URL query string to the device's
     http-write.json endpoint. Works only on models that accept plain query-string
     commands. Most encrypted models expect send_raw_command instead.
+  target:
+    device:
+      integration: candy
   fields:
-    entry_id:
-      name: Config entry ID
-      description: The config entry id of the Candy device to target.
-      required: true
-      selector:
-        config_entry:
-          integration: candy
     params:
       name: Parameters
       description: Map of query parameters to send to the device.
@@ -29,14 +25,12 @@ send_raw_command:
     Send a pre-encrypted hex blob to http-write.json as the `data` parameter.
     This is the format the official Candy/hOn app uses for encrypted devices.
     Use this with hex blobs you have captured (e.g. from mitmproxy).
+    NOTE: each install of the integration generates a new device key, so blobs
+    captured from a previous install will not decrypt on this one.
+  target:
+    device:
+      integration: candy
   fields:
-    entry_id:
-      name: Config entry ID
-      description: The config entry id of the Candy device to target.
-      required: true
-      selector:
-        config_entry:
-          integration: candy
     data:
       name: Hex data
       description: Pre-encrypted command, hex-encoded (no `0x` prefix).
@@ -51,14 +45,10 @@ send_plaintext_command:
     XOR-encrypt the given plaintext with the configured device key, hex-encode
     it, and send as the `data` parameter to http-write.json. Use this once you
     have reverse-engineered the plaintext command format for your device.
+  target:
+    device:
+      integration: candy
   fields:
-    entry_id:
-      name: Config entry ID
-      description: The config entry id of the Candy device to target.
-      required: true
-      selector:
-        config_entry:
-          integration: candy
     plaintext:
       name: Plaintext command
       description: The plaintext command string to encrypt and send.
@@ -73,13 +63,10 @@ washing_machine_start:
     Build and send a START command for a Candy washing machine. Wraps the
     plaintext format Write=1&Pa=0&Sel=0&PrNm=N&StSt=1&...&Stm=0&RecipeId=0&CheckUpState=0
     and encrypts it with the configured device key.
+  target:
+    device:
+      integration: candy
   fields:
-    entry_id:
-      name: Config entry ID
-      required: true
-      selector:
-        config_entry:
-          integration: candy
     program:
       name: Program number (PrNm)
       description: The program number to start (1..N depending on model).
@@ -141,13 +128,10 @@ washing_machine_stop:
     Build and send a STOP command. If `program` is omitted, the current program
     number is taken from the device's last known status.
     Plaintext: Write=1&StSt=0&DelMd=0&PrNm=N
+  target:
+    device:
+      integration: candy
   fields:
-    entry_id:
-      name: Config entry ID
-      required: true
-      selector:
-        config_entry:
-          integration: candy
     program:
       name: Program number
       description: Optional override; defaults to the current program.
@@ -160,24 +144,16 @@ washing_machine_stop:
 washing_machine_pause:
   name: Washing machine — Pause
   description: Sends Write=1&Pa=1. Best-effort; not yet verified on every model.
-  fields:
-    entry_id:
-      name: Config entry ID
-      required: true
-      selector:
-        config_entry:
-          integration: candy
+  target:
+    device:
+      integration: candy
 
 washing_machine_resume:
   name: Washing machine — Resume
   description: Sends Write=1&Pa=0. Best-effort.
-  fields:
-    entry_id:
-      name: Config entry ID
-      required: true
-      selector:
-        config_entry:
-          integration: candy
+  target:
+    device:
+      integration: candy
 
 tumble_dryer_start:
   name: Tumble dryer — Start program (EXPERIMENTAL)
@@ -188,13 +164,10 @@ tumble_dryer_start:
     Inferred plaintext:
       Write=1&Pa=0&Sel=0&Pr=N&StSt=1[&DryLev=L][&DryingManagerLevel=L]
       &Rapido=0&RecipeId=NULL&CheckUpState=0
+  target:
+    device:
+      integration: candy
   fields:
-    entry_id:
-      name: Config entry ID
-      required: true
-      selector:
-        config_entry:
-          integration: candy
     program:
       name: Program (Pr)
       required: true
@@ -233,13 +206,10 @@ tumble_dryer_stop:
   name: Tumble dryer — Stop (EXPERIMENTAL)
   description: >
     Best-effort STOP. Inferred plaintext: Write=1&StSt=0&DelVal=0&Pr=N
+  target:
+    device:
+      integration: candy
   fields:
-    entry_id:
-      name: Config entry ID
-      required: true
-      selector:
-        config_entry:
-          integration: candy
     program:
       name: Program
       description: Optional override; defaults to the current program.
@@ -252,24 +222,16 @@ tumble_dryer_stop:
 tumble_dryer_pause:
   name: Tumble dryer — Pause (EXPERIMENTAL)
   description: Sends Write=1&Pa=1. Best-effort.
-  fields:
-    entry_id:
-      name: Config entry ID
-      required: true
-      selector:
-        config_entry:
-          integration: candy
+  target:
+    device:
+      integration: candy
 
 tumble_dryer_resume:
   name: Tumble dryer — Resume (EXPERIMENTAL)
   description: Sends Write=1&Pa=0. Best-effort.
-  fields:
-    entry_id:
-      name: Config entry ID
-      required: true
-      selector:
-        config_entry:
-          integration: candy
+  target:
+    device:
+      integration: candy
 
 decrypt_data:
   name: Decrypt captured hex blob
@@ -277,14 +239,10 @@ decrypt_data:
     XOR-decrypt the given hex blob with the configured device key and log the
     plaintext at warning level (visible in the Home Assistant log). Helpful for
     learning your device's plaintext command format from a captured blob.
+  target:
+    device:
+      integration: candy
   fields:
-    entry_id:
-      name: Config entry ID
-      description: The config entry id of the Candy device whose key to use.
-      required: true
-      selector:
-        config_entry:
-          integration: candy
     data:
       name: Hex data
       description: Encrypted command, hex-encoded.

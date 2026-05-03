@@ -1,7 +1,7 @@
 """Constants for the Candy integration."""
 
 DOMAIN = "candy"
-PLATFORMS = ["sensor"]
+PLATFORMS = ["sensor", "button"]
 
 DATA_KEY_COORDINATOR = "coordinator"
 DATA_KEY_CLIENT = "client"
@@ -39,11 +39,13 @@ UNIQUE_ID_WASH_CYCLE_STATUS = "{0}-wash_cycle_status"
 UNIQUE_ID_WASH_REMAINING_TIME = "{0}-wash_remaining_time"
 UNIQUE_ID_WASH_PAUSE_BUTTON = "{0}-wash_pause_button"
 UNIQUE_ID_WASH_RESUME_BUTTON = "{0}-wash_resume_button"
+UNIQUE_ID_WASH_STOP_BUTTON = "{0}-wash_stop_button"
 UNIQUE_ID_TUMBLE_DRYER = "{0}-tumble_dryer"
 UNIQUE_ID_TUMBLE_CYCLE_STATUS = "{0}-tumble_cycle_status"
 UNIQUE_ID_TUMBLE_REMAINING_TIME = "{0}-tumble_remaining_time"
 UNIQUE_ID_TUMBLE_PAUSE_BUTTON = "{0}-tumble_pause_button"
 UNIQUE_ID_TUMBLE_RESUME_BUTTON = "{0}-tumble_resume_button"
+UNIQUE_ID_TUMBLE_STOP_BUTTON = "{0}-tumble_stop_button"
 
 UNIQUE_ID_OVEN = "{0}-oven"
 UNIQUE_ID_OVEN_TEMP = "{0}-oven-temp"
