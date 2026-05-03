@@ -20,7 +20,7 @@ class StatusCode(Enum):
 
 
 class MachineState(StatusCode):
-    IDLE = (1, "Idle")
+    IDLE = (1, "Ready")
     RUNNING = (2, "Running")
     PAUSED = (3, "Paused")
     DELAYED_START_SELECTION = (4, "Delayed start selection")
@@ -31,7 +31,7 @@ class MachineState(StatusCode):
 
 
 class WashProgramState(StatusCode):
-    STOPPED = (0, "Stopped")
+    STOPPED = (0, "Ready")
     PRE_WASH = (1, "Pre-wash")
     WASH = (2, "Wash")
     RINSE = (3, "Rinse")
@@ -74,6 +74,9 @@ class WashingMachineStatus:
     remaining_minutes: int
     remote_control: bool
     fill_percent: Optional[int]  # 0...100
+    error: int = 0
+    soil_level: int = 0   # 0=none 1=light 2=medium 3=heavy
+    steam: int = 0        # 0=off 1=low 2=high
 
     @classmethod
     def from_json(cls, json):
@@ -87,22 +90,25 @@ class WashingMachineStatus:
             spin_speed=int(json["SpinSp"]) * 100,
             remaining_minutes=int(json["RemTime"]),
             remote_control=json["WiFiStatus"] == "1",
-            fill_percent=int(json["FillR"]) if "FillR" in json else None
+            fill_percent=int(json["FillR"]) if "FillR" in json else None,
+            error=int(json.get("Err", 0)),
+            soil_level=int(json.get("SLevel", 0)),
+            steam=int(json.get("Steam", 0)),
         )
 
 
 class DryerProgramState(StatusCode):
-    STOPPED = (0, "Stopped")
+    STOPPED = (0, "Ready")
     RUNNING = (2, "Running")
     END = (3, "End")
 
 
 class DryerCycleState(StatusCode):
-    LEVEL_NONE = (0, "No Dry")
-    LEVEL_IRON = (1, "Iron Dry")
-    LEVEL_HANG = (2, "Hang Dry")
-    LEVEL_STORE = (3, "Store Dry")
-    LEVEL_BONE = (4, "Bone Dry")
+    LEVEL_NONE = (0, "No dry")
+    LEVEL_IRON = (1, "Iron dry")
+    LEVEL_HANG = (2, "Ready to wear")
+    LEVEL_STORE = (3, "Cupboard dry")
+    LEVEL_BONE = (4, "Bone dry")
 
 
 @dataclass
@@ -119,6 +125,7 @@ class TumbleDryerStatus:
     need_clean_filter: bool
     water_tank_full: bool
     door_closed: bool
+    error: int = 0
 
     @classmethod
     def from_json(cls, json):
@@ -135,6 +142,7 @@ class TumbleDryerStatus:
             need_clean_filter=json["CleanFilter"] == "1",
             water_tank_full=json["WaterTankFull"] == "1",
             door_closed=json["DoorState"] == "1",
+            error=int(json.get("CodiceErrore", 0)),
         )
 
 

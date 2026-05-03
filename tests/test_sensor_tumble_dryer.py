@@ -14,7 +14,7 @@ async def test_main_sensor_idle(hass: HomeAssistant, aioclient_mock: AiohttpClie
     state = hass.states.get("sensor.tumble_dryer")
 
     assert state
-    assert state.state == "Idle"
+    assert state.state == "Ready"
     assert state.attributes == {
         'program': 1,
         'remaining_minutes': 150,
@@ -58,7 +58,7 @@ async def test_cycle_sensor_idle(hass: HomeAssistant, aioclient_mock: AiohttpCli
     state = hass.states.get("sensor.dryer_cycle_status")
 
     assert state
-    assert state.state == "Hang Dry"
+    assert state.state == "Ready to wear"
     assert state.attributes == {
         "friendly_name": "Dryer cycle status",
         "icon": "mdi:tumble-dryer"

@@ -1,7 +1,7 @@
 """Constants for the Candy integration."""
 
 DOMAIN = "candy"
-PLATFORMS = ["sensor", "button", "select", "number"]
+PLATFORMS = ["sensor", "binary_sensor", "button", "select", "number"]
 
 DATA_KEY_COORDINATOR = "coordinator"
 DATA_KEY_CLIENT = "client"
@@ -61,6 +61,18 @@ UNIQUE_ID_WM_TEMP = "{0}-wm_temperature"
 UNIQUE_ID_WM_SPIN = "{0}-wm_spin_speed"
 UNIQUE_ID_WM_SOIL = "{0}-wm_soil_level"
 UNIQUE_ID_WM_STEAM = "{0}-wm_steam"
+
+# Read-only sensor unique IDs (separate from the writable number/select entities)
+UNIQUE_ID_WM_PROGRAM_SENSOR = "{0}-wm_program_sensor"
+UNIQUE_ID_WM_TEMP_SENSOR = "{0}-wm_temp_sensor"
+UNIQUE_ID_WM_SPIN_SENSOR = "{0}-wm_spin_sensor"
+UNIQUE_ID_WM_SOIL_SENSOR = "{0}-wm_soil_sensor"
+UNIQUE_ID_WM_ERROR = "{0}-wm_error"
+UNIQUE_ID_TD_DRY_LEVEL = "{0}-td_dry_level_sensor"
+UNIQUE_ID_TD_ERROR = "{0}-td_error"
+UNIQUE_ID_TD_DOOR = "{0}-td_door"
+UNIQUE_ID_TD_FILTER = "{0}-td_filter"
+UNIQUE_ID_TD_WATER_TANK = "{0}-td_water_tank"
 
 UNIQUE_ID_OVEN = "{0}-oven"
 UNIQUE_ID_OVEN_TEMP = "{0}-oven-temp"

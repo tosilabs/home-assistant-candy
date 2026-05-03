@@ -14,7 +14,7 @@ async def test_main_sensor_idle(hass: HomeAssistant, aioclient_mock: AiohttpClie
     state = hass.states.get("sensor.washing_machine")
 
     assert state
-    assert state.state == "Idle"
+    assert state.state == "Ready"
     assert state.attributes == {
         'program': 1,
         'program_code': 136,
@@ -23,7 +23,7 @@ async def test_main_sensor_idle(hass: HomeAssistant, aioclient_mock: AiohttpClie
         'remaining_minutes': 0,
         'remote_control': True,
         'fill_percent': 0,
-        'friendly_name': 'Washing machine',
+        'friendly_name': 'Washing machine',  # entity friendly name unchanged
         'icon': 'mdi:washing-machine'
     }
 
@@ -34,7 +34,7 @@ async def test_cycle_sensor_idle(hass: HomeAssistant, aioclient_mock: AiohttpCli
     state = hass.states.get("sensor.wash_cycle_status")
 
     assert state
-    assert state.state == "Stopped"
+    assert state.state == "Ready"
     assert state.attributes == {
         "friendly_name": "Wash cycle status",
         "icon": "mdi:washing-machine"
@@ -75,14 +75,14 @@ async def test_main_sensor_no_fillr(hass: HomeAssistant, aioclient_mock: Aiohttp
     state = hass.states.get("sensor.washing_machine")
 
     assert state
-    assert state.state == "Idle"
+    assert state.state == "Ready"
     assert state.attributes == {
         'program': 4,
         'temperature': 40,
         'spin_speed': 1000,
         'remaining_minutes': 0,
         'remote_control': False,
-        'friendly_name': 'Washing machine',
+        'friendly_name': 'Washing machine',  # entity friendly name unchanged
         'icon': 'mdi:washing-machine'
     }
 
@@ -102,7 +102,7 @@ async def test_main_sensor_no_pr(hass: HomeAssistant, aioclient_mock: AiohttpCli
         'remaining_minutes': 46,
         'remote_control': True,
         'fill_percent': 53,
-        'friendly_name': 'Washing machine',
+        'friendly_name': 'Washing machine',  # entity friendly name unchanged
         'icon': 'mdi:washing-machine'
     }
 
