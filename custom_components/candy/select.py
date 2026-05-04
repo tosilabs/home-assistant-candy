@@ -78,11 +78,17 @@ class CandyWashProgramSelect(RestoreEntity, SelectEntity):
 
     @property
     def name(self) -> str:
-        return "01 Program"
+        return "Program"
 
     @property
     def options(self) -> list[str]:
-        return sorted((p.name for p in WASHING_MACHINE_PROGRAMS), key=str.casefold)
+        category = self._entry_data.get(DATA_KEY_WM_CATEGORY, "All")
+        names = []
+        for prog in WASHING_MACHINE_PROGRAMS:
+            prog_category = WASHING_MACHINE_PROGRAM_META_SQ.get(prog.name, {}).get("category", "Tjetër")
+            if category == "All" or prog_category == category:
+                names.append(prog.name)
+        return sorted(names, key=str.casefold)
 
     @property
     def current_option(self) -> str:
@@ -156,7 +162,7 @@ class CandyWashCategorySelect(RestoreEntity, SelectEntity):
     def __init__(self, config_id: str, entry_data: dict):
         self.config_id = config_id
         self._entry_data = entry_data
-        self._current = "1. Cycles"
+        self._current = "All"
 
     @property
     def unique_id(self) -> str:
@@ -169,7 +175,7 @@ class CandyWashCategorySelect(RestoreEntity, SelectEntity):
     @property
     def options(self) -> list[str]:
         categories = {meta.get("category", "Tjetër") for meta in WASHING_MACHINE_PROGRAM_META_SQ.values()}
-        return sorted(categories)
+        return ["All", *sorted(categories)]
 
     @property
     def current_option(self) -> str:
@@ -217,7 +223,7 @@ class CandyWashSoilLevelSelect(RestoreEntity, SelectEntity):
 
     @property
     def name(self) -> str:
-        return "03 Soil level"
+        return "Soil level"
 
     @property
     def options(self) -> list[str]:
@@ -284,7 +290,7 @@ class CandyWashSteamSelect(RestoreEntity, SelectEntity):
 
     @property
     def name(self) -> str:
-        return "04 Steam"
+        return "Steam"
 
     @property
     def options(self) -> list[str]:
@@ -344,7 +350,7 @@ class CandyTumbleCategorySelect(RestoreEntity, SelectEntity):
     def __init__(self, config_id: str, entry_data: dict):
         self.config_id = config_id
         self._entry_data = entry_data
-        self._current = "1. Cycles"
+        self._current = "All"
 
     @property
     def unique_id(self) -> str:
@@ -357,7 +363,7 @@ class CandyTumbleCategorySelect(RestoreEntity, SelectEntity):
     @property
     def options(self) -> list[str]:
         categories = {meta.get("category", "Tjetër") for meta in TUMBLE_DRYER_PROGRAM_META_SQ.values()}
-        return sorted(categories)
+        return ["All", *sorted(categories)]
 
     @property
     def current_option(self) -> str:
@@ -405,11 +411,17 @@ class CandyTumbleProgramSelect(RestoreEntity, SelectEntity):
 
     @property
     def name(self) -> str:
-        return "01 Program"
+        return "Program"
 
     @property
     def options(self) -> list[str]:
-        return sorted((p.name for p in TUMBLE_DRYER_PROGRAMS), key=str.casefold)
+        category = self._entry_data.get(DATA_KEY_TD_CATEGORY, "All")
+        names = []
+        for prog in TUMBLE_DRYER_PROGRAMS:
+            prog_category = TUMBLE_DRYER_PROGRAM_META_SQ.get(prog.name, {}).get("category", "Tjetër")
+            if category == "All" or prog_category == category:
+                names.append(prog.name)
+        return sorted(names, key=str.casefold)
 
     @property
     def current_option(self) -> str:
