@@ -12,9 +12,13 @@ DATA_KEY_WM_SOIL = "wm_soil"
 DATA_KEY_WM_STEAM = "wm_steam"
 DATA_KEY_TD_DRY_LEVEL = "td_dry_level"
 DATA_KEY_TD_TIME = "td_time"
+DATA_KEY_WM_CATEGORY = "wm_category"
+DATA_KEY_TD_CATEGORY = "td_category"
 
 # Dispatcher signal fired when user changes the WM program selection
 SIGNAL_WM_PROGRAM_CHANGED = "candy_{}_wm_program_changed"
+SIGNAL_WM_CATEGORY_CHANGED = "candy_{}_wm_category_changed"
+SIGNAL_TD_CATEGORY_CHANGED = "candy_{}_td_category_changed"
 
 CONF_INTEGRATION_TITLE = "Candy"
 CONF_KEY_USE_ENCRYPTION = "use_encryption"
