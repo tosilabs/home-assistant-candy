@@ -1,0 +1,209 @@
+# ============================================================
+# Candy Washing Machine — Home Assistant Lovelace Dashboard
+# Kërkon: Mushroom Cards (HACS) → https://github.com/piitaya/lovelace-mushroom
+# Entitetet bazohen në sensorët e sensor.py (PR #6)
+# ============================================================
+
+title: Candy Washing Machine
+views:
+  - title: Lavatrice
+    icon: mdi:washing-machine
+    path: candy-wm
+    cards:
+
+      # ── 1. STATUSI KRYESOR (hero card) ──────────────────────
+      - type: custom:mushroom-template-card
+        primary: >
+          {% set s = states('sensor.washing_machine_machine_status') %}
+          {% if s == 'Running' %} 🌀 Duke larë...
+          {% elif s == 'Paused' %} ⏸️ Ndërprerë
+          {% elif s == 'Finished' %} ✅ Larja përfundoi!
+          {% elif s == 'Delayed start' %} ⏰ Start i vonuar
+          {% else %} 💤 Gati
+          {% endif %}
+        secondary: >
+          {% set prog = states('sensor.washing_machine_program') %}
+          {% set mins = states('sensor.washing_machine_time_remaining') | int(0) %}
+          {% if prog != 'No Program' and prog != 'unknown' %}{{ prog }}{% if mins > 0 %} — {{ mins }} min mbetur{% endif %}
+          {% else %}Nuk ka program aktiv{% endif %}
+        icon: >
+          {% set s = states('sensor.washing_machine_machine_status') %}
+          {% if s == 'Running' %}mdi:washing-machine
+          {% elif s == 'Paused' %}mdi:pause-circle
+          {% elif s == 'Finished' %}mdi:check-circle
+          {% else %}mdi:washing-machine-off{% endif %}
+        icon_color: >
+          {% set s = states('sensor.washing_machine_machine_status') %}
+          {% if s == 'Running' %}blue{% elif s == 'Paused' %}orange{% elif s == 'Finished' %}green{% else %}grey{% endif %}
+        tap_action:
+          action: none
+
+      # ── 2. PROGRESS — koha e mbetur (vetëm kur aktive) ──────
+      - type: conditional
+        conditions:
+          - condition: state
+            entity: sensor.washing_machine_machine_status
+            state_not: Ready
+        card:
+          type: custom:mushroom-template-card
+          primary: Koha e mbetur
+          secondary: "{{ states('sensor.washing_machine_time_remaining') }} minuta"
+          icon: mdi:progress-clock
+          icon_color: blue
+          badge_icon: >
+            {% if states('sensor.washing_machine_machine_status') == 'Paused' %}mdi:pause{% else %}mdi:play{% endif %}
+          badge_color: >
+            {% if states('sensor.washing_machine_machine_status') == 'Paused' %}orange{% else %}blue{% endif %}
+
+      # ── 3. SENSORËT — grid 2 kolona ─────────────────────────
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+          - type: custom:mushroom-tile-card
+            entity: sensor.washing_machine_temperature
+            name: Temperatura
+            icon: mdi:thermometer
+            icon_color: red
+          - type: custom:mushroom-tile-card
+            entity: sensor.washing_machine_spin
+            name: Shpejtësia
+            icon: mdi:rotate-right
+            icon_color: blue
+          - type: custom:mushroom-tile-card
+            entity: sensor.washing_machine_phase
+            name: Faza
+            icon: mdi:state-machine
+            icon_color: teal
+          - type: custom:mushroom-tile-card
+            entity: sensor.washing_machine_stain_type
+            name: Lloji ndotjes
+            icon: mdi:water-opacity
+            icon_color: indigo
+          - type: custom:mushroom-tile-card
+            entity: sensor.washing_machine_error
+            name: Gabim
+            icon: mdi:alert-circle
+            icon_color: grey
+          - type: custom:mushroom-tile-card
+            entity: sensor.washing_machine_cycles_total
+            name: Cikle totale
+            icon: mdi:counter
+            icon_color: purple
+
+      # ── 4. KONFIGURIM PAJISJES ───────────────────────────────
+      - type: entities
+        title: ⚙️ Konfigurim pajisjes
+        show_header_toggle: false
+        entities:
+          - entity: sensor.washing_machine_door_lock
+            name: Bravë dere
+            icon: mdi:lock
+          - entity: sensor.washing_machine_door_open
+            name: Dera
+            icon: mdi:door
+          - entity: sensor.washing_machine_remote_control
+            name: Kontroll remote
+            icon: mdi:remote
+          - entity: sensor.washing_machine_energy_consumption_current
+            name: Energjia tani
+            icon: mdi:lightning-bolt
+          - entity: sensor.washing_machine_energy_consumption_total
+            name: Energjia totale
+            icon: mdi:lightning-bolt-circle
+          - entity: sensor.washing_machine_water_efficiency_current
+            name: Uji tani
+            icon: mdi:water
+          - entity: sensor.washing_machine_water_efficiency_total
+            name: Uji total
+            icon: mdi:water-check
+
+      # ── 5. SENSORS / OPSIONE ─────────────────────────────────
+      - type: entities
+        title: 🧴 Sensors / Opsione
+        show_header_toggle: false
+        entities:
+          - entity: binary_sensor.washing_machine_autodose_detergent
+            name: Autodose Detergjent
+            icon: mdi:cup-water
+          - entity: binary_sensor.washing_machine_autodose_softener
+            name: Autodose Zbutes
+            icon: mdi:snowflake-variant
+          - entity: sensor.washing_machine_delay_start
+            name: Delay Start
+            icon: mdi:clock-start
+          - entity: binary_sensor.washing_machine_delay_start
+            name: Delay Start (ndezur)
+            icon: mdi:timer-play
+          - entity: binary_sensor.washing_machine_keep_fresh
+            name: Keep Fresh
+            icon: mdi:refresh-circle
+          - entity: sensor.washing_machine_number_of_rinses
+            name: Shpëlarje
+            icon: mdi:water-sync
+          - entity: binary_sensor.washing_machine_pre_wash
+            name: Para-larje
+            icon: mdi:tshirt-crew
+
+      # ── 6. NUMBER ENTITIES (nga PR #6) ───────────────────────
+      - type: entities
+        title: 🎛️ Cilësimet e programit
+        show_header_toggle: false
+        entities:
+          - entity: number.washing_machine_02_temperature
+            name: Temperatura e synuar
+            icon: mdi:thermometer-plus
+          - entity: number.washing_machine_05_spin_speed
+            name: Shpejtësia e synuar
+            icon: mdi:speedometer
+
+      # ── 7. BUTONAT KONTROLLI ─────────────────────────────────
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+          - type: custom:mushroom-template-card
+            primary: Fillo
+            icon: mdi:play
+            icon_color: green
+            tap_action:
+              action: call-service
+              service: candy.washing_machine_start
+              target: {}
+          - type: custom:mushroom-template-card
+            primary: Ndale
+            icon: mdi:stop
+            icon_color: red
+            tap_action:
+              action: call-service
+              service: candy.washing_machine_stop
+              target: {}
+          - type: custom:mushroom-template-card
+            primary: Pauzë
+            icon: mdi:pause
+            icon_color: orange
+            tap_action:
+              action: call-service
+              service: candy.washing_machine_pause
+              target: {}
+          - type: custom:mushroom-template-card
+            primary: Rifillo
+            icon: mdi:play-pause
+            icon_color: blue
+            tap_action:
+              action: call-service
+              service: candy.washing_machine_resume
+              target: {}
+
+      # ── 8. ALERT — gabim aktiv (vetëm kur error > 0) ─────────
+      - type: conditional
+        conditions:
+          - condition: numeric_state
+            entity: sensor.washing_machine_error
+            above: 0
+        card:
+          type: markdown
+          content: >
+            ## ⚠️ Gabim aktiv!
+            Kodi i gabimit: **{{ states('sensor.washing_machine_error') }}**
+            Kontrolloni pajisjen fizikisht.
