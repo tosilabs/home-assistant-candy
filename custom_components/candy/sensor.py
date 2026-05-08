@@ -1,3 +1,10 @@
+"""Sensor entities for Candy appliances.
+
+This module exposes both the original high‑level machine status sensors and
+additional, more fine‑grained sensors so that common values in the API
+(wash temperature, spin, soil level, tumble dry level, error codes, etc.)
+are always visible in HA.
+"""
 from abc import abstractmethod
 from typing import Any, Mapping
 
@@ -7,52 +14,62 @@ from homeassistant.const import UnitOfTemperature, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.typing import StateType
-from homeassistant.helpers.update_coordinator import (CoordinatorEntity,
-                                                      DataUpdateCoordinator)
+from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
 
 from .client import WashingMachineStatus
-from .client.model import (DishwasherState, DishwasherStatus,
-                           DryerCycleState, DryerProgramState, MachineState,
-                           OvenStatus, TumbleDryerStatus, WashProgramState)
+from .client.model import (
+    DishwasherState,
+    DishwasherStatus,
+    DryerCycleState,
+    DryerProgramState,
+    MachineState,
+    OvenStatus,
+    TumbleDryerStatus,
+    WashProgramState,
+)
 from .const import *
 
 _SOIL_LABELS = {0: "None", 1: "Light", 2: "Medium", 3: "Heavy"}
 
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities):
-    """Set up the Candy sensors from config entry."""
+    """Set up Candy sensors from a config entry."""
 
     config_id = config_entry.entry_id
     coordinator = hass.data[DOMAIN][config_id][DATA_KEY_COORDINATOR]
 
     if isinstance(coordinator.data, WashingMachineStatus):
-        async_add_entities([
-            CandyWashingMachineSensor(coordinator, config_id),
-            CandyWashCycleStatusSensor(coordinator, config_id),
-            CandyWashRemainingTimeSensor(coordinator, config_id),
-            CandyWashProgramSensor(coordinator, config_id),
-            CandyWashTemperatureSensor(coordinator, config_id),
-            CandyWashSpinSensor(coordinator, config_id),
-            CandyWashSoilLevelSensor(coordinator, config_id),
-            CandyWashErrorSensor(coordinator, config_id),
-        ])
+        async_add_entities(
+            [
+                CandyWashingMachineSensor(coordinator, config_id),
+                CandyWashCycleStatusSensor(coordinator, config_id),
+                CandyWashRemainingTimeSensor(coordinator, config_id),
+                CandyWashProgramSensor(coordinator, config_id),
+                CandyWashTemperatureSensor(coordinator, config_id),
+                CandyWashSpinSensor(coordinator, config_id),
+                CandyWashSoilLevelSensor(coordinator, config_id),
+                CandyWashErrorSensor(coordinator, config_id),
+            ]
+        )
     elif isinstance(coordinator.data, TumbleDryerStatus):
-        async_add_entities([
-            CandyTumbleDryerSensor(coordinator, config_id),
-            CandyTumbleStatusSensor(coordinator, config_id),
-            CandyTumbleRemainingTimeSensor(coordinator, config_id),
-            CandyTumbleDryLevelSensor(coordinator, config_id),
-            CandyTumbleErrorSensor(coordinator, config_id),
-        ])
+        async_add_entities(
+            [
+                CandyTumbleDryerSensor(coordinator, config_id),
+                CandyTumbleStatusSensor(coordinator, config_id),
+                CandyTumbleRemainingTimeSensor(coordinator, config_id),
+                CandyTumbleDryLevelSensor(coordinator, config_id),
+                CandyTumbleErrorSensor(coordinator, config_id),
+            ]
+        )
     elif isinstance(coordinator.data, OvenStatus):
         async_add_entities([
             CandyOvenSensor(coordinator, config_id),
-            CandyOvenTempSensor(coordinator, config_id)
+            CandyOvenTempSensor(coordinator, config_id),
         ])
     elif isinstance(coordinator.data, DishwasherStatus):
         async_add_entities([
             CandyDishwasherSensor(coordinator, config_id),
-            CandyDishwasherRemainingTimeSensor(coordinator, config_id)
+            CandyDishwasherRemainingTimeSensor(coordinator, config_id),
         ])
     else:
         raise Exception(f"Unable to determine machine type: {coordinator.data}")
@@ -74,15 +91,14 @@ class CandyBaseSensor(CoordinatorEntity, SensorEntity):
 
     @abstractmethod
     def device_name(self) -> str:
-        pass
+        ...
 
     @abstractmethod
     def suggested_area(self) -> str:
-        pass
+        ...
 
 
 class CandyWashingMachineSensor(CandyBaseSensor):
-
     def device_name(self) -> str:
         return DEVICE_NAME_WASHING_MACHINE
 
@@ -110,13 +126,14 @@ class CandyWashingMachineSensor(CandyBaseSensor):
     def extra_state_attributes(self) -> Mapping[str, Any]:
         status: WashingMachineStatus = self.coordinator.data
 
-        attributes = {
+        attributes: dict[str, Any] = {
             "program_type": status.program_type,
             "program": status.program,
             "temperature": status.temp,
             "spin_speed": status.spin_speed,
-            "remaining_minutes": status.remaining_minutes if status.machine_state in [MachineState.RUNNING,
-                                                                                      MachineState.PAUSED] else 0,
+            "remaining_minutes": status.remaining_minutes
+            if status.machine_state in [MachineState.RUNNING, MachineState.PAUSED]
+            else 0,
             "remote_control": status.remote_control,
         }
 
@@ -130,7 +147,6 @@ class CandyWashingMachineSensor(CandyBaseSensor):
 
 
 class CandyWashCycleStatusSensor(CandyBaseSensor):
-
     def device_name(self) -> str:
         return DEVICE_NAME_WASHING_MACHINE
 
@@ -156,7 +172,6 @@ class CandyWashCycleStatusSensor(CandyBaseSensor):
 
 
 class CandyWashRemainingTimeSensor(CandyBaseSensor):
-
     def device_name(self) -> str:
         return DEVICE_NAME_WASHING_MACHINE
 
@@ -176,8 +191,7 @@ class CandyWashRemainingTimeSensor(CandyBaseSensor):
         status: WashingMachineStatus = self.coordinator.data
         if status.machine_state in [MachineState.RUNNING, MachineState.PAUSED]:
             return status.remaining_minutes
-        else:
-            return 0
+        return 0
 
     @property
     def unit_of_measurement(self) -> str:
@@ -189,7 +203,6 @@ class CandyWashRemainingTimeSensor(CandyBaseSensor):
 
 
 class CandyTumbleDryerSensor(CandyBaseSensor):
-
     def device_name(self) -> str:
         return DEVICE_NAME_TUMBLE_DRYER
 
@@ -217,7 +230,7 @@ class CandyTumbleDryerSensor(CandyBaseSensor):
     def extra_state_attributes(self) -> Mapping[str, Any]:
         status: TumbleDryerStatus = self.coordinator.data
 
-        attributes = {
+        return {
             "program": status.program,
             "remaining_minutes": status.remaining_minutes,
             "remote_control": status.remote_control,
@@ -229,11 +242,8 @@ class CandyTumbleDryerSensor(CandyBaseSensor):
             "door_closed": status.door_closed,
         }
 
-        return attributes
-
 
 class CandyTumbleStatusSensor(CandyBaseSensor):
-
     def device_name(self) -> str:
         return DEVICE_NAME_TUMBLE_DRYER
 
@@ -251,10 +261,10 @@ class CandyTumbleStatusSensor(CandyBaseSensor):
     @property
     def state(self) -> StateType:
         status: TumbleDryerStatus = self.coordinator.data
-        if status.program_state in [DryerProgramState.STOPPED]:
+        # When the program has already stopped, expose the final cycle result
+        if status.program_state == DryerProgramState.STOPPED:
             return str(status.cycle_state)
-        else:
-            return str(status.program_state)
+        return str(status.program_state)
 
     @property
     def icon(self) -> str:
@@ -262,7 +272,6 @@ class CandyTumbleStatusSensor(CandyBaseSensor):
 
 
 class CandyTumbleRemainingTimeSensor(CandyBaseSensor):
-
     def device_name(self) -> str:
         return DEVICE_NAME_TUMBLE_DRYER
 
@@ -282,8 +291,7 @@ class CandyTumbleRemainingTimeSensor(CandyBaseSensor):
         status: TumbleDryerStatus = self.coordinator.data
         if status.machine_state in [MachineState.RUNNING, MachineState.PAUSED]:
             return status.remaining_minutes
-        else:
-            return 0
+        return 0
 
     @property
     def unit_of_measurement(self) -> str:
@@ -295,7 +303,6 @@ class CandyTumbleRemainingTimeSensor(CandyBaseSensor):
 
 
 class CandyOvenSensor(CandyBaseSensor):
-
     def device_name(self) -> str:
         return DEVICE_NAME_OVEN
 
@@ -323,7 +330,7 @@ class CandyOvenSensor(CandyBaseSensor):
     def extra_state_attributes(self) -> Mapping[str, Any]:
         status: OvenStatus = self.coordinator.data
 
-        attributes = {
+        attributes: dict[str, Any] = {
             "program": status.program,
             "selection": status.selection,
             "temperature": status.temp,
@@ -338,7 +345,6 @@ class CandyOvenSensor(CandyBaseSensor):
 
 
 class CandyOvenTempSensor(CandyBaseSensor):
-
     def device_name(self) -> str:
         return DEVICE_NAME_OVEN
 
@@ -368,7 +374,6 @@ class CandyOvenTempSensor(CandyBaseSensor):
 
 
 class CandyDishwasherSensor(CandyBaseSensor):
-
     def device_name(self) -> str:
         return DEVICE_NAME_DISHWASHER
 
@@ -396,15 +401,16 @@ class CandyDishwasherSensor(CandyBaseSensor):
     def extra_state_attributes(self) -> Mapping[str, Any]:
         status: DishwasherStatus = self.coordinator.data
 
-        attributes = {
+        attributes: dict[str, Any] = {
             "program": status.program,
-            "remaining_minutes": 0 if status.machine_state in
-                                      [DishwasherState.IDLE, DishwasherState.FINISHED] else status.remaining_minutes,
+            "remaining_minutes": 0
+            if status.machine_state in [DishwasherState.IDLE, DishwasherState.FINISHED]
+            else status.remaining_minutes,
             "remote_control": status.remote_control,
             "door_open": status.door_open,
             "eco_mode": status.eco_mode,
             "salt_empty": status.salt_empty,
-            "rinse_aid_empty": status.rinse_aid_empty
+            "rinse_aid_empty": status.rinse_aid_empty,
         }
 
         if status.door_open_allowed is not None:
@@ -417,7 +423,6 @@ class CandyDishwasherSensor(CandyBaseSensor):
 
 
 class CandyDishwasherRemainingTimeSensor(CandyBaseSensor):
-
     def device_name(self) -> str:
         return DEVICE_NAME_DISHWASHER
 
@@ -437,8 +442,7 @@ class CandyDishwasherRemainingTimeSensor(CandyBaseSensor):
         status: DishwasherStatus = self.coordinator.data
         if status.machine_state in [DishwasherState.IDLE, DishwasherState.FINISHED]:
             return 0
-        else:
-            return status.remaining_minutes
+        return status.remaining_minutes
 
     @property
     def unit_of_measurement(self) -> str:
@@ -452,20 +456,25 @@ class CandyDishwasherRemainingTimeSensor(CandyBaseSensor):
 # ── Washing machine – extra sensors ───────────────────────────────────────────
 
 class _WashSensorBase(CandyBaseSensor):
-    def device_name(self) -> str: return DEVICE_NAME_WASHING_MACHINE
-    def suggested_area(self) -> str: return SUGGESTED_AREA_KITCHEN
+    def device_name(self) -> str:  # type: ignore[override]
+        return DEVICE_NAME_WASHING_MACHINE
+
+    def suggested_area(self) -> str:  # type: ignore[override]
+        return SUGGESTED_AREA_KITCHEN
 
 
 class CandyWashProgramSensor(_WashSensorBase):
     @property
-    def name(self) -> str: return "Program"
+    def name(self) -> str:
+        return "Program"
 
     @property
     def unique_id(self) -> str:
         return UNIQUE_ID_WM_PROGRAM_SENSOR.format(self.config_id)
 
     @property
-    def icon(self) -> str: return "mdi:play-circle"
+    def icon(self) -> str:
+        return "mdi:play-circle"
 
     @property
     def state(self) -> StateType:
@@ -481,7 +490,8 @@ class CandyWashTemperatureSensor(_WashSensorBase):
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
 
     @property
-    def name(self) -> str: return "Temperature"
+    def name(self) -> str:
+        return "Temperature"
 
     @property
     def unique_id(self) -> str:
@@ -497,14 +507,16 @@ class CandyWashSpinSensor(_WashSensorBase):
     _attr_native_unit_of_measurement = "rpm"
 
     @property
-    def name(self) -> str: return "Spin"
+    def name(self) -> str:
+        return "Spin"
 
     @property
     def unique_id(self) -> str:
         return UNIQUE_ID_WM_SPIN_SENSOR.format(self.config_id)
 
     @property
-    def icon(self) -> str: return "mdi:rotate-right"
+    def icon(self) -> str:
+        return "mdi:rotate-right"
 
     @property
     def native_value(self) -> StateType:
@@ -513,14 +525,16 @@ class CandyWashSpinSensor(_WashSensorBase):
 
 class CandyWashSoilLevelSensor(_WashSensorBase):
     @property
-    def name(self) -> str: return "Stain type"
+    def name(self) -> str:
+        return "Stain type"
 
     @property
     def unique_id(self) -> str:
         return UNIQUE_ID_WM_SOIL_SENSOR.format(self.config_id)
 
     @property
-    def icon(self) -> str: return "mdi:water-opacity"
+    def icon(self) -> str:
+        return "mdi:water-opacity"
 
     @property
     def state(self) -> StateType:
@@ -529,14 +543,16 @@ class CandyWashSoilLevelSensor(_WashSensorBase):
 
 class CandyWashErrorSensor(_WashSensorBase):
     @property
-    def name(self) -> str: return "Error"
+    def name(self) -> str:
+        return "Error"
 
     @property
     def unique_id(self) -> str:
         return UNIQUE_ID_WM_ERROR.format(self.config_id)
 
     @property
-    def icon(self) -> str: return "mdi:alert-circle"
+    def icon(self) -> str:
+        return "mdi:alert-circle"
 
     @property
     def state(self) -> StateType:
@@ -546,39 +562,51 @@ class CandyWashErrorSensor(_WashSensorBase):
 # ── Tumble dryer – extra sensors ──────────────────────────────────────────────
 
 class _TumbleSensorBase(CandyBaseSensor):
-    def device_name(self) -> str: return DEVICE_NAME_TUMBLE_DRYER
-    def suggested_area(self) -> str: return SUGGESTED_AREA_BATHROOM
+    def device_name(self) -> str:  # type: ignore[override]
+        return DEVICE_NAME_TUMBLE_DRYER
+
+    def suggested_area(self) -> str:  # type: ignore[override]
+        return SUGGESTED_AREA_BATHROOM
 
 
 class CandyTumbleDryLevelSensor(_TumbleSensorBase):
     @property
-    def name(self) -> str: return "Drying level"
+    def name(self) -> str:
+        return "Drying level"
 
     @property
     def unique_id(self) -> str:
         return UNIQUE_ID_TD_DRY_LEVEL.format(self.config_id)
 
     @property
-    def icon(self) -> str: return "mdi:hair-dryer"
+    def icon(self) -> str:
+        return "mdi:hair-dryer"
 
     @property
     def state(self) -> StateType:
         status: TumbleDryerStatus = self.coordinator.data
+        # When the dryer program is idle/stopped, show the final dryness level
         if status.program_state == DryerProgramState.STOPPED:
-            return str(DryerCycleState.from_code(status.dry_level))
+            try:
+                return str(DryerCycleState.from_code(status.dry_level))
+            except ValueError:
+                # If vendor adds a new level we don't know yet, fall back to raw value
+                return str(status.dry_level)
         return str(status.program_state)
 
 
 class CandyTumbleErrorSensor(_TumbleSensorBase):
     @property
-    def name(self) -> str: return "Error"
+    def name(self) -> str:
+        return "Error"
 
     @property
     def unique_id(self) -> str:
         return UNIQUE_ID_TD_ERROR.format(self.config_id)
 
     @property
-    def icon(self) -> str: return "mdi:alert-circle"
+    def icon(self) -> str:
+        return "mdi:alert-circle"
 
     @property
     def state(self) -> StateType:
