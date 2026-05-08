@@ -5,6 +5,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.restore_state import RestoreEntity
+from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
 
 from .client.model import TumbleDryerStatus, WashingMachineStatus
 from .const import (DATA_KEY_COORDINATOR, DATA_KEY_TD_TIME, DATA_KEY_WM_SPIN, DATA_KEY_WM_TEMP,
@@ -20,17 +21,35 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
 
     if isinstance(coordinator.data, WashingMachineStatus):
         async_add_entities([
-            CandyWashTemperatureNumber(config_id, entry_data),
-            CandyWashSpinSpeedNumber(config_id, entry_data),
+            CandyWashTemperatureNumber(config_id, entry_data, coordinator),
+            CandyWashSpinSpeedNumber(config_id, entry_data, coordinator),
         ])
     elif isinstance(coordinator.data, TumbleDryerStatus):
-        async_add_entities([CandyTumbleTimeNumber(config_id, entry_data)])
+        async_add_entities([CandyTumbleTimeNumber(config_id, entry_data, coordinator)])
 
 
 class _WashNumberBase(RestoreEntity, NumberEntity):
-    def __init__(self, config_id: str, entry_data: dict):
+    """Base class for all Candy number entities — exposes coordinator availability."""
+    _attr_has_entity_name = True
+
+    def __init__(self, config_id: str, entry_data: dict, coordinator: DataUpdateCoordinator):
         self.config_id = config_id
         self._entry_data = entry_data
+        self._coordinator = coordinator
+
+    @property
+    def available(self) -> bool:
+        return self._coordinator.last_update_success
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            self._coordinator.async_add_listener(self._handle_coordinator_update)
+        )
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self.async_write_ha_state()
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -43,17 +62,16 @@ class _WashNumberBase(RestoreEntity, NumberEntity):
 
 
 class CandyWashTemperatureNumber(_WashNumberBase):
-    _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.CONFIG
     _attr_icon = "mdi:thermometer"
     _attr_native_min_value = 0
     _attr_native_max_value = 90
     _attr_native_step = 10
-    _attr_native_unit_of_measurement = "°C"
+    _attr_native_unit_of_measurement = "\u00b0C"
     _attr_mode = NumberMode.SLIDER
 
-    def __init__(self, config_id, entry_data):
-        super().__init__(config_id, entry_data)
+    def __init__(self, config_id, entry_data, coordinator):
+        super().__init__(config_id, entry_data, coordinator)
         self._value = 40.0
 
     @property
@@ -62,7 +80,7 @@ class CandyWashTemperatureNumber(_WashNumberBase):
 
     @property
     def name(self) -> str:
-        return "02 Temperature"
+        return "Temperature"
 
     @property
     def native_value(self) -> float:
@@ -100,7 +118,6 @@ class CandyWashTemperatureNumber(_WashNumberBase):
 
 
 class CandyWashSpinSpeedNumber(_WashNumberBase):
-    _attr_has_entity_name = True
     _attr_icon = "mdi:rotate-right"
     _attr_native_min_value = 0
     _attr_native_max_value = 1500
@@ -108,8 +125,8 @@ class CandyWashSpinSpeedNumber(_WashNumberBase):
     _attr_native_unit_of_measurement = "rpm"
     _attr_mode = NumberMode.SLIDER
 
-    def __init__(self, config_id, entry_data):
-        super().__init__(config_id, entry_data)
+    def __init__(self, config_id, entry_data, coordinator):
+        super().__init__(config_id, entry_data, coordinator)
         self._value = 1000.0
 
     @property
@@ -118,7 +135,7 @@ class CandyWashSpinSpeedNumber(_WashNumberBase):
 
     @property
     def name(self) -> str:
-        return "05 Spin speed"
+        return "Spin speed"
 
     @property
     def native_value(self) -> float:
@@ -162,13 +179,18 @@ class CandyTumbleTimeNumber(RestoreEntity, NumberEntity):
     _attr_native_min_value = 30
     _attr_native_max_value = 220
     _attr_native_step = 10
-    _attr_native_unit_of_measurement = "min"
+di    _attr_native_unit_of_measurement = "min"
     _attr_mode = NumberMode.BOX
 
-    def __init__(self, config_id: str, entry_data: dict):
+    def __init__(self, config_id: str, entry_data: dict, coordinator: DataUpdateCoordinator):
         self.config_id = config_id
         self._entry_data = entry_data
+        self._coordinator = coordinator
         self._value = 90.0
+
+    @property
+    def available(self) -> bool:
+        return self._coordinator.last_update_success
 
     @property
     def unique_id(self) -> str:
@@ -176,7 +198,7 @@ class CandyTumbleTimeNumber(RestoreEntity, NumberEntity):
 
     @property
     def name(self) -> str:
-        return "Drying in time"
+        return "Drying time"
 
     @property
     def native_value(self) -> float:
@@ -189,6 +211,19 @@ class CandyTumbleTimeNumber(RestoreEntity, NumberEntity):
             name=DEVICE_NAME_TUMBLE_DRYER,
             manufacturer="Candy",
             suggested_area=SUGGESTED_AREA_BATHROOM,
+        )
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_state()
+        if last and last.state not in ("unknown", "unavailable"):
+            try:
+                self._value = float(last.state)
+                self._entry_data[DATA_KEY_TD_TIME] = int(self._value)
+            except ValueError:
+                pass
+        self.async_on_remove(
+            self._coordinator.async_add_listener(lambda: self.async_write_ha_state())
         )
 
     async def async_set_native_value(self, value: float) -> None:

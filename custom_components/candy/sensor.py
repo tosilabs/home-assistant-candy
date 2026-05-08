@@ -5,7 +5,7 @@ from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, Sen
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTemperature, UnitOfTime
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.typing import StateType
 from homeassistant.helpers.update_coordinator import (CoordinatorEntity,
                                                       DataUpdateCoordinator)
@@ -61,6 +61,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
 
 
 class CandyBaseSensor(CoordinatorEntity, SensorEntity):
+    _attr_has_entity_name = True
+
     def __init__(self, coordinator: DataUpdateCoordinator, config_id: str):
         super().__init__(coordinator)
         self.config_id = config_id
@@ -119,12 +121,10 @@ class CandyWashingMachineSensor(CandyBaseSensor):
             "remote_control": status.remote_control,
         }
 
-        # Only show program type when actively running / paused
         if status.machine_state not in (MachineState.IDLE, MachineState.FINISHED1, MachineState.FINISHED2):
             if status.program_type is not None:
                 attributes["program_type"] = str(status.program_type)
 
-        # Only show temp / spin when they are real values
         if status.temp is not None:
             attributes["temperature"] = status.temp
         if status.spin_speed is not None:
@@ -151,11 +151,11 @@ class CandyWashCycleStatusSensor(CandyBaseSensor):
         return DEVICE_NAME_WASHING_MACHINE
 
     def suggested_area(self) -> str:
-        return SUGGESTED_AREA_BATHROOM
+        return SUGGESTED_AREA_KITCHEN
 
     @property
     def name(self) -> str:
-        return "Phase"
+        return "Cycle phase"
 
     @property
     def unique_id(self) -> str:
@@ -172,12 +172,13 @@ class CandyWashCycleStatusSensor(CandyBaseSensor):
 
 
 class CandyWashRemainingTimeSensor(CandyBaseSensor):
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def device_name(self) -> str:
         return DEVICE_NAME_WASHING_MACHINE
 
     def suggested_area(self) -> str:
-        return SUGGESTED_AREA_BATHROOM
+        return SUGGESTED_AREA_KITCHEN
 
     @property
     def name(self) -> str:
@@ -248,7 +249,6 @@ class CandyTumbleDryerSensor(CandyBaseSensor):
         else:
             attributes["remaining_minutes"] = 0
 
-        # Only expose dry levels when they are real values (not sentinel)
         if status.dry_level is not None:
             attributes["dry_level"] = status.dry_level
         if status.dry_level_selected is not None:
@@ -269,7 +269,7 @@ class CandyTumbleStatusSensor(CandyBaseSensor):
 
     @property
     def name(self) -> str:
-        return "Phase"
+        return "Cycle phase"
 
     @property
     def unique_id(self) -> str:
@@ -288,6 +288,7 @@ class CandyTumbleStatusSensor(CandyBaseSensor):
 
 
 class CandyTumbleRemainingTimeSensor(CandyBaseSensor):
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def device_name(self) -> str:
         return DEVICE_NAME_TUMBLE_DRYER
@@ -365,6 +366,9 @@ class CandyOvenSensor(CandyBaseSensor):
 
 
 class CandyOvenTempSensor(CandyBaseSensor):
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
 
     def device_name(self) -> str:
         return DEVICE_NAME_OVEN
@@ -381,13 +385,9 @@ class CandyOvenTempSensor(CandyBaseSensor):
         return UNIQUE_ID_OVEN_TEMP.format(self.config_id)
 
     @property
-    def state(self) -> StateType:
+    def native_value(self) -> StateType:
         status: OvenStatus = self.coordinator.data
         return status.temp
-
-    @property
-    def unit_of_measurement(self) -> str:
-        return UnitOfTemperature.CELSIUS
 
     @property
     def icon(self) -> str:
@@ -445,6 +445,7 @@ class CandyDishwasherSensor(CandyBaseSensor):
 
 
 class CandyDishwasherRemainingTimeSensor(CandyBaseSensor):
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def device_name(self) -> str:
         return DEVICE_NAME_DISHWASHER
@@ -454,7 +455,7 @@ class CandyDishwasherRemainingTimeSensor(CandyBaseSensor):
 
     @property
     def name(self) -> str:
-        return "Dishwasher remaining time"
+        return "Time remaining"
 
     @property
     def unique_id(self) -> str:
@@ -519,10 +520,9 @@ class CandyWashTemperatureSensor(_WashSensorBase):
     @property
     def native_value(self) -> StateType:
         status: WashingMachineStatus = self.coordinator.data
-        # Return None (unavailable) when sentinel or machine is idle
         if status.machine_state in (MachineState.IDLE, MachineState.FINISHED1, MachineState.FINISHED2):
             return None
-        return status.temp  # already None when sentinel
+        return status.temp
 
 
 class CandyWashSpinSensor(_WashSensorBase):
@@ -530,7 +530,7 @@ class CandyWashSpinSensor(_WashSensorBase):
     _attr_native_unit_of_measurement = "rpm"
 
     @property
-    def name(self) -> str: return "Spin"
+    def name(self) -> str: return "Spin speed"
 
     @property
     def unique_id(self) -> str:
@@ -544,12 +544,14 @@ class CandyWashSpinSensor(_WashSensorBase):
         status: WashingMachineStatus = self.coordinator.data
         if status.machine_state in (MachineState.IDLE, MachineState.FINISHED1, MachineState.FINISHED2):
             return None
-        return status.spin_speed  # already None when sentinel
+        return status.spin_speed
 
 
 class CandyWashSoilLevelSensor(_WashSensorBase):
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
     @property
-    def name(self) -> str: return "Stain type"
+    def name(self) -> str: return "Stain level"
 
     @property
     def unique_id(self) -> str:
@@ -567,6 +569,8 @@ class CandyWashSoilLevelSensor(_WashSensorBase):
 
 
 class CandyWashErrorSensor(_WashSensorBase):
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
     @property
     def name(self) -> str: return "Error"
 
@@ -580,12 +584,12 @@ class CandyWashErrorSensor(_WashSensorBase):
     @property
     def state(self) -> StateType:
         status: WashingMachineStatus = self.coordinator.data
-        # error is None when no error or sentinel — show None (unavailable)
         return status.error
 
 
 class CandyWashDelayStartSensor(_WashSensorBase):
-    """Shows delay-start countdown in minutes; None when not programmed."""
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     @property
     def name(self) -> str: return "Delay start"
@@ -603,7 +607,7 @@ class CandyWashDelayStartSensor(_WashSensorBase):
 
     @property
     def state(self) -> StateType:
-        return self.coordinator.data.delay_start_minutes  # None when not set
+        return self.coordinator.data.delay_start_minutes
 
 
 # ── Tumble dryer – extra sensors ──────────────────────────────────────────────
@@ -635,6 +639,8 @@ class CandyTumbleDryLevelSensor(_TumbleSensorBase):
 
 
 class CandyTumbleErrorSensor(_TumbleSensorBase):
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
     @property
     def name(self) -> str: return "Error"
 
@@ -647,11 +653,12 @@ class CandyTumbleErrorSensor(_TumbleSensorBase):
 
     @property
     def state(self) -> StateType:
-        return self.coordinator.data.error  # None when no error
+        return self.coordinator.data.error
 
 
 class CandyTumbleDelayStartSensor(_TumbleSensorBase):
-    """Shows delay-start countdown in minutes; None when not programmed."""
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     @property
     def name(self) -> str: return "Delay start"
@@ -669,4 +676,4 @@ class CandyTumbleDelayStartSensor(_TumbleSensorBase):
 
     @property
     def state(self) -> StateType:
-        return self.coordinator.data.delay_start_minutes  # None when not set
+        return self.coordinator.data.delay_start_minutes
