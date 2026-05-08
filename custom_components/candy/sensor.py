@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Any, Mapping
+from typing import Any, Mapping, Optional
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
@@ -35,6 +35,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
             CandyWashSpinSensor(coordinator, config_id),
             CandyWashSoilLevelSensor(coordinator, config_id),
             CandyWashErrorSensor(coordinator, config_id),
+            CandyWashDelayStartSensor(coordinator, config_id),
         ])
     elif isinstance(coordinator.data, TumbleDryerStatus):
         async_add_entities([
@@ -43,6 +44,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
             CandyTumbleRemainingTimeSensor(coordinator, config_id),
             CandyTumbleDryLevelSensor(coordinator, config_id),
             CandyTumbleErrorSensor(coordinator, config_id),
+            CandyTumbleDelayStartSensor(coordinator, config_id),
         ])
     elif isinstance(coordinator.data, OvenStatus):
         async_add_entities([
@@ -81,6 +83,8 @@ class CandyBaseSensor(CoordinatorEntity, SensorEntity):
         pass
 
 
+# ── Washing machine ────────────────────────────────────────────────────────────
+
 class CandyWashingMachineSensor(CandyBaseSensor):
 
     def device_name(self) -> str:
@@ -110,21 +114,33 @@ class CandyWashingMachineSensor(CandyBaseSensor):
     def extra_state_attributes(self) -> Mapping[str, Any]:
         status: WashingMachineStatus = self.coordinator.data
 
-        attributes = {
-            "program_type": status.program_type,
+        attributes: dict = {
             "program": status.program,
-            "temperature": status.temp,
-            "spin_speed": status.spin_speed,
-            "remaining_minutes": status.remaining_minutes if status.machine_state in [MachineState.RUNNING,
-                                                                                      MachineState.PAUSED] else 0,
             "remote_control": status.remote_control,
         }
 
+        # Only show program type when actively running / paused
+        if status.machine_state not in (MachineState.IDLE, MachineState.FINISHED1, MachineState.FINISHED2):
+            if status.program_type is not None:
+                attributes["program_type"] = str(status.program_type)
+
+        # Only show temp / spin when they are real values
+        if status.temp is not None:
+            attributes["temperature"] = status.temp
+        if status.spin_speed is not None:
+            attributes["spin_speed"] = status.spin_speed
+
+        if status.machine_state in (MachineState.RUNNING, MachineState.PAUSED):
+            attributes["remaining_minutes"] = status.remaining_minutes
+        else:
+            attributes["remaining_minutes"] = 0
+
         if status.fill_percent is not None:
             attributes["fill_percent"] = status.fill_percent
-
         if status.program_code is not None:
             attributes["program_code"] = status.program_code
+        if status.delay_start_minutes is not None:
+            attributes["delay_start_minutes"] = status.delay_start_minutes
 
         return attributes
 
@@ -174,10 +190,9 @@ class CandyWashRemainingTimeSensor(CandyBaseSensor):
     @property
     def state(self) -> StateType:
         status: WashingMachineStatus = self.coordinator.data
-        if status.machine_state in [MachineState.RUNNING, MachineState.PAUSED]:
+        if status.machine_state in (MachineState.RUNNING, MachineState.PAUSED):
             return status.remaining_minutes
-        else:
-            return 0
+        return 0
 
     @property
     def unit_of_measurement(self) -> str:
@@ -187,6 +202,8 @@ class CandyWashRemainingTimeSensor(CandyBaseSensor):
     def icon(self) -> str:
         return "mdi:progress-clock"
 
+
+# ── Tumble dryer ───────────────────────────────────────────────────────────────
 
 class CandyTumbleDryerSensor(CandyBaseSensor):
 
@@ -217,17 +234,27 @@ class CandyTumbleDryerSensor(CandyBaseSensor):
     def extra_state_attributes(self) -> Mapping[str, Any]:
         status: TumbleDryerStatus = self.coordinator.data
 
-        attributes = {
+        attributes: dict = {
             "program": status.program,
-            "remaining_minutes": status.remaining_minutes,
             "remote_control": status.remote_control,
-            "dry_level": status.dry_level,
-            "dry_level_now": status.dry_level_selected,
             "refresh": status.refresh,
             "need_clean_filter": status.need_clean_filter,
             "water_tank_full": status.water_tank_full,
             "door_closed": status.door_closed,
         }
+
+        if status.machine_state in (MachineState.RUNNING, MachineState.PAUSED):
+            attributes["remaining_minutes"] = status.remaining_minutes
+        else:
+            attributes["remaining_minutes"] = 0
+
+        # Only expose dry levels when they are real values (not sentinel)
+        if status.dry_level is not None:
+            attributes["dry_level"] = status.dry_level
+        if status.dry_level_selected is not None:
+            attributes["dry_level_now"] = status.dry_level_selected
+        if status.delay_start_minutes is not None:
+            attributes["delay_start_minutes"] = status.delay_start_minutes
 
         return attributes
 
@@ -251,10 +278,9 @@ class CandyTumbleStatusSensor(CandyBaseSensor):
     @property
     def state(self) -> StateType:
         status: TumbleDryerStatus = self.coordinator.data
-        if status.program_state in [DryerProgramState.STOPPED]:
-            return str(status.cycle_state)
-        else:
-            return str(status.program_state)
+        if status.program_state in (DryerProgramState.STOPPED,):
+            return str(status.cycle_state) if status.cycle_state is not None else "Ready"
+        return str(status.program_state)
 
     @property
     def icon(self) -> str:
@@ -280,10 +306,9 @@ class CandyTumbleRemainingTimeSensor(CandyBaseSensor):
     @property
     def state(self) -> StateType:
         status: TumbleDryerStatus = self.coordinator.data
-        if status.machine_state in [MachineState.RUNNING, MachineState.PAUSED]:
+        if status.machine_state in (MachineState.RUNNING, MachineState.PAUSED):
             return status.remaining_minutes
-        else:
-            return 0
+        return 0
 
     @property
     def unit_of_measurement(self) -> str:
@@ -293,6 +318,8 @@ class CandyTumbleRemainingTimeSensor(CandyBaseSensor):
     def icon(self) -> str:
         return "mdi:progress-clock"
 
+
+# ── Oven ───────────────────────────────────────────────────────────────────────
 
 class CandyOvenSensor(CandyBaseSensor):
 
@@ -367,6 +394,8 @@ class CandyOvenTempSensor(CandyBaseSensor):
         return "mdi:thermometer"
 
 
+# ── Dishwasher ─────────────────────────────────────────────────────────────────
+
 class CandyDishwasherSensor(CandyBaseSensor):
 
     def device_name(self) -> str:
@@ -399,17 +428,16 @@ class CandyDishwasherSensor(CandyBaseSensor):
         attributes = {
             "program": status.program,
             "remaining_minutes": 0 if status.machine_state in
-                                      [DishwasherState.IDLE, DishwasherState.FINISHED] else status.remaining_minutes,
+                                      (DishwasherState.IDLE, DishwasherState.FINISHED) else status.remaining_minutes,
             "remote_control": status.remote_control,
             "door_open": status.door_open,
             "eco_mode": status.eco_mode,
             "salt_empty": status.salt_empty,
-            "rinse_aid_empty": status.rinse_aid_empty
+            "rinse_aid_empty": status.rinse_aid_empty,
         }
 
         if status.door_open_allowed is not None:
             attributes["door_open_allowed"] = status.door_open_allowed
-
         if status.delayed_start_hours is not None:
             attributes["delayed_start_hours"] = status.delayed_start_hours
 
@@ -435,10 +463,9 @@ class CandyDishwasherRemainingTimeSensor(CandyBaseSensor):
     @property
     def state(self) -> StateType:
         status: DishwasherStatus = self.coordinator.data
-        if status.machine_state in [DishwasherState.IDLE, DishwasherState.FINISHED]:
+        if status.machine_state in (DishwasherState.IDLE, DishwasherState.FINISHED):
             return 0
-        else:
-            return status.remaining_minutes
+        return status.remaining_minutes
 
     @property
     def unit_of_measurement(self) -> str:
@@ -472,6 +499,8 @@ class CandyWashProgramSensor(_WashSensorBase):
         status: WashingMachineStatus = self.coordinator.data
         if status.program_state in (WashProgramState.STOPPED, WashProgramState.END):
             return "No Program"
+        if status.program_type is None:
+            return "Unknown"
         return str(status.program_type)
 
 
@@ -489,7 +518,11 @@ class CandyWashTemperatureSensor(_WashSensorBase):
 
     @property
     def native_value(self) -> StateType:
-        return self.coordinator.data.temp
+        status: WashingMachineStatus = self.coordinator.data
+        # Return None (unavailable) when sentinel or machine is idle
+        if status.machine_state in (MachineState.IDLE, MachineState.FINISHED1, MachineState.FINISHED2):
+            return None
+        return status.temp  # already None when sentinel
 
 
 class CandyWashSpinSensor(_WashSensorBase):
@@ -508,7 +541,10 @@ class CandyWashSpinSensor(_WashSensorBase):
 
     @property
     def native_value(self) -> StateType:
-        return self.coordinator.data.spin_speed
+        status: WashingMachineStatus = self.coordinator.data
+        if status.machine_state in (MachineState.IDLE, MachineState.FINISHED1, MachineState.FINISHED2):
+            return None
+        return status.spin_speed  # already None when sentinel
 
 
 class CandyWashSoilLevelSensor(_WashSensorBase):
@@ -524,7 +560,10 @@ class CandyWashSoilLevelSensor(_WashSensorBase):
 
     @property
     def state(self) -> StateType:
-        return _SOIL_LABELS.get(self.coordinator.data.soil_level, "Unknown")
+        status: WashingMachineStatus = self.coordinator.data
+        if status.soil_level is None:
+            return None
+        return _SOIL_LABELS.get(status.soil_level, "Unknown")
 
 
 class CandyWashErrorSensor(_WashSensorBase):
@@ -540,7 +579,31 @@ class CandyWashErrorSensor(_WashSensorBase):
 
     @property
     def state(self) -> StateType:
-        return self.coordinator.data.error
+        status: WashingMachineStatus = self.coordinator.data
+        # error is None when no error or sentinel — show None (unavailable)
+        return status.error
+
+
+class CandyWashDelayStartSensor(_WashSensorBase):
+    """Shows delay-start countdown in minutes; None when not programmed."""
+
+    @property
+    def name(self) -> str: return "Delay start"
+
+    @property
+    def unique_id(self) -> str:
+        return UNIQUE_ID_WM_DELAY_START.format(self.config_id)
+
+    @property
+    def icon(self) -> str: return "mdi:clock-start"
+
+    @property
+    def unit_of_measurement(self) -> str:
+        return UnitOfTime.MINUTES
+
+    @property
+    def state(self) -> StateType:
+        return self.coordinator.data.delay_start_minutes  # None when not set
 
 
 # ── Tumble dryer – extra sensors ──────────────────────────────────────────────
@@ -565,7 +628,9 @@ class CandyTumbleDryLevelSensor(_TumbleSensorBase):
     def state(self) -> StateType:
         status: TumbleDryerStatus = self.coordinator.data
         if status.program_state == DryerProgramState.STOPPED:
-            return str(DryerCycleState.from_code(status.dry_level))
+            if status.cycle_state is None:
+                return None
+            return str(status.cycle_state)
         return str(status.program_state)
 
 
@@ -582,4 +647,26 @@ class CandyTumbleErrorSensor(_TumbleSensorBase):
 
     @property
     def state(self) -> StateType:
-        return self.coordinator.data.error
+        return self.coordinator.data.error  # None when no error
+
+
+class CandyTumbleDelayStartSensor(_TumbleSensorBase):
+    """Shows delay-start countdown in minutes; None when not programmed."""
+
+    @property
+    def name(self) -> str: return "Delay start"
+
+    @property
+    def unique_id(self) -> str:
+        return UNIQUE_ID_TD_DELAY_START.format(self.config_id)
+
+    @property
+    def icon(self) -> str: return "mdi:clock-start"
+
+    @property
+    def unit_of_measurement(self) -> str:
+        return UnitOfTime.MINUTES
+
+    @property
+    def state(self) -> StateType:
+        return self.coordinator.data.delay_start_minutes  # None when not set
