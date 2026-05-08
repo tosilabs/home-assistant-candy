@@ -1,26 +1,32 @@
 # ============================================================
-# Candy Washing Machine — Home Assistant Lovelace Dashboard
+# Candy — Washing Machine + Tumble Dryer
+# Home Assistant Lovelace Dashboard (një view, dy pajisje)
 # Kërkon: Mushroom Cards (HACS) → https://github.com/piitaya/lovelace-mushroom
-# Entitetet bazohen në sensorët e sensor.py (PR #6)
 # ============================================================
 
-title: Candy Washing Machine
+title: Candy Laundry
 views:
-  - title: Lavatrice
-    icon: mdi:washing-machine
-    path: candy-wm
+  - title: Laundry Room
+    icon: mdi:hanger
+    path: candy-laundry
     cards:
 
-      # ── 1. STATUSI KRYESOR (hero card) ──────────────────────
+      # ════════════════════════════════════════════════════════
+      #  🫧  WASHING MACHINE
+      # ════════════════════════════════════════════════════════
+
+      - type: markdown
+        content: "## 🫧 Washing Machine"
+
+      # ── WM 1. STATUSI KRYESOR ───────────────────────────────
       - type: custom:mushroom-template-card
         primary: >
           {% set s = states('sensor.washing_machine_machine_status') %}
-          {% if s == 'Running' %} 🌀 Duke larë...
-          {% elif s == 'Paused' %} ⏸️ Ndërprerë
-          {% elif s == 'Finished' %} ✅ Larja përfundoi!
-          {% elif s == 'Delayed start' %} ⏰ Start i vonuar
-          {% else %} 💤 Gati
-          {% endif %}
+          {% if s == 'Running' %}🌀 Duke larë...
+          {% elif s == 'Paused' %}⏸️ Ndërprerë
+          {% elif s == 'Finished' %}✅ Larja përfundoi!
+          {% elif s == 'Delayed start' %}⏰ Start i vonuar
+          {% else %}💤 Gati{% endif %}
         secondary: >
           {% set prog = states('sensor.washing_machine_program') %}
           {% set mins = states('sensor.washing_machine_time_remaining') | int(0) %}
@@ -38,7 +44,7 @@ views:
         tap_action:
           action: none
 
-      # ── 2. PROGRESS — koha e mbetur (vetëm kur aktive) ──────
+      # ── WM 2. KOHA E MBETUR (vetëm kur aktive) ──────────────
       - type: conditional
         conditions:
           - condition: state
@@ -55,7 +61,7 @@ views:
           badge_color: >
             {% if states('sensor.washing_machine_machine_status') == 'Paused' %}orange{% else %}blue{% endif %}
 
-      # ── 3. SENSORËT — grid 2 kolona ─────────────────────────
+      # ── WM 3. SENSORËT — grid 2 kolona ──────────────────────
       - type: grid
         columns: 2
         square: false
@@ -91,9 +97,9 @@ views:
             icon: mdi:counter
             icon_color: purple
 
-      # ── 4. KONFIGURIM PAJISJES ───────────────────────────────
+      # ── WM 4. KONFIGURIM ─────────────────────────────────────
       - type: entities
-        title: ⚙️ Konfigurim pajisjes
+        title: ⚙️ Konfigurim — Washing Machine
         show_header_toggle: false
         entities:
           - entity: sensor.washing_machine_door_lock
@@ -118,7 +124,7 @@ views:
             name: Uji total
             icon: mdi:water-check
 
-      # ── 5. SENSORS / OPSIONE ─────────────────────────────────
+      # ── WM 5. SENSORS / OPSIONE ──────────────────────────────
       - type: entities
         title: 🧴 Sensors / Opsione
         show_header_toggle: false
@@ -145,7 +151,7 @@ views:
             name: Para-larje
             icon: mdi:tshirt-crew
 
-      # ── 6. NUMBER ENTITIES (nga PR #6) ───────────────────────
+      # ── WM 6. NUMBER ENTITIES ────────────────────────────────
       - type: entities
         title: 🎛️ Cilësimet e programit
         show_header_toggle: false
@@ -157,7 +163,7 @@ views:
             name: Shpejtësia e synuar
             icon: mdi:speedometer
 
-      # ── 7. BUTONAT KONTROLLI ─────────────────────────────────
+      # ── WM 7. BUTONAT KONTROLLI ──────────────────────────────
       - type: grid
         columns: 2
         square: false
@@ -195,7 +201,7 @@ views:
               service: candy.washing_machine_resume
               target: {}
 
-      # ── 8. ALERT — gabim aktiv (vetëm kur error > 0) ─────────
+      # ── WM 8. ALERT gabim ────────────────────────────────────
       - type: conditional
         conditions:
           - condition: numeric_state
@@ -203,7 +209,159 @@ views:
             above: 0
         card:
           type: markdown
-          content: >
-            ## ⚠️ Gabim aktiv!
-            Kodi i gabimit: **{{ states('sensor.washing_machine_error') }}**
-            Kontrolloni pajisjen fizikisht.
+          content: "## ⚠️ Gabim WM! Kodi: **{{ states('sensor.washing_machine_error') }}**"
+
+
+      # ════════════════════════════════════════════════════════
+      #  ── NDARËS VIZUAL ──────────────────────────────────────
+      # ════════════════════════════════════════════════════════
+
+      - type: markdown
+        content: "<hr style='border:none; border-top:2px solid var(--divider-color); margin:8px 0;'/>"
+
+      # ════════════════════════════════════════════════════════
+      #  🌬️  TUMBLE DRYER
+      # ════════════════════════════════════════════════════════
+
+      - type: markdown
+        content: "## 🌬️ Tumble Dryer"
+
+      # ── TD 1. STATUSI KRYESOR ───────────────────────────────
+      - type: custom:mushroom-template-card
+        primary: >
+          {% set s = states('sensor.tumble_dryer_machine_status') %}
+          {% if s == 'Running' %}♨️ Duke tharë...
+          {% elif s == 'Paused' %}⏸️ Ndërprerë
+          {% elif s == 'Finished' %}✅ Tharja përfundoi!
+          {% else %}💤 Gati{% endif %}
+        secondary: >
+          {% set mins = states('sensor.tumble_dryer_time_remaining') | int(0) %}
+          {% set phase = states('sensor.tumble_dryer_phase') %}
+          {% if mins > 0 %}{{ phase }} — {{ mins }} min mbetur
+          {% else %}Nuk ka program aktiv{% endif %}
+        icon: >
+          {% set s = states('sensor.tumble_dryer_machine_status') %}
+          {% if s == 'Running' %}mdi:tumble-dryer
+          {% elif s == 'Paused' %}mdi:pause-circle
+          {% elif s == 'Finished' %}mdi:check-circle
+          {% else %}mdi:tumble-dryer-off{% endif %}
+        icon_color: >
+          {% set s = states('sensor.tumble_dryer_machine_status') %}
+          {% if s == 'Running' %}deep-orange{% elif s == 'Paused' %}orange{% elif s == 'Finished' %}green{% else %}grey{% endif %}
+        tap_action:
+          action: none
+
+      # ── TD 2. KOHA E MBETUR (vetëm kur aktive) ──────────────
+      - type: conditional
+        conditions:
+          - condition: state
+            entity: sensor.tumble_dryer_machine_status
+            state_not: Idle
+        card:
+          type: custom:mushroom-template-card
+          primary: Koha e mbetur
+          secondary: "{{ states('sensor.tumble_dryer_time_remaining') }} minuta"
+          icon: mdi:progress-clock
+          icon_color: deep-orange
+          badge_icon: >
+            {% if states('sensor.tumble_dryer_machine_status') == 'Paused' %}mdi:pause{% else %}mdi:play{% endif %}
+          badge_color: >
+            {% if states('sensor.tumble_dryer_machine_status') == 'Paused' %}orange{% else %}deep-orange{% endif %}
+
+      # ── TD 3. SENSORËT — grid 2 kolona ──────────────────────
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+          - type: custom:mushroom-tile-card
+            entity: sensor.tumble_dryer_phase
+            name: Faza
+            icon: mdi:state-machine
+            icon_color: teal
+          - type: custom:mushroom-tile-card
+            entity: sensor.tumble_dryer_drying_level
+            name: Niveli tharjes
+            icon: mdi:hair-dryer
+            icon_color: deep-orange
+          - type: custom:mushroom-tile-card
+            entity: sensor.tumble_dryer_error
+            name: Gabim
+            icon: mdi:alert-circle
+            icon_color: grey
+          - type: custom:mushroom-tile-card
+            entity: sensor.tumble_dryer_machine_status
+            name: Statusi
+            icon: mdi:tumble-dryer
+            icon_color: deep-orange
+
+      # ── TD 4. SENSORË SPECIFIKË (filter, ujë, derë) ─────────
+      - type: entities
+        title: ⚙️ Konfigurim — Tumble Dryer
+        show_header_toggle: false
+        entities:
+          - entity: binary_sensor.tumble_dryer_door
+            name: Dera
+            icon: mdi:door
+          - entity: binary_sensor.tumble_dryer_filter
+            name: Filtri (pastro)
+            icon: mdi:air-filter
+          - entity: binary_sensor.tumble_dryer_water_tank
+            name: Rezervuari ujit
+            icon: mdi:water-well
+
+      # ── TD 5. NUMBER ENTITY ──────────────────────────────────
+      - type: entities
+        title: 🎛️ Cilësimet e tharjes
+        show_header_toggle: false
+        entities:
+          - entity: number.tumble_dryer_drying_in_time
+            name: Koha e tharjes
+            icon: mdi:timer-outline
+
+      # ── TD 6. BUTONAT KONTROLLI ──────────────────────────────
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+          - type: custom:mushroom-template-card
+            primary: Fillo
+            icon: mdi:play
+            icon_color: green
+            tap_action:
+              action: call-service
+              service: candy.tumble_dryer_start
+              target: {}
+          - type: custom:mushroom-template-card
+            primary: Ndale
+            icon: mdi:stop
+            icon_color: red
+            tap_action:
+              action: call-service
+              service: candy.tumble_dryer_stop
+              target: {}
+          - type: custom:mushroom-template-card
+            primary: Pauzë
+            icon: mdi:pause
+            icon_color: orange
+            tap_action:
+              action: call-service
+              service: candy.tumble_dryer_pause
+              target: {}
+          - type: custom:mushroom-template-card
+            primary: Rifillo
+            icon: mdi:play-pause
+            icon_color: deep-orange
+            tap_action:
+              action: call-service
+              service: candy.tumble_dryer_resume
+              target: {}
+
+      # ── TD 7. ALERT gabim ────────────────────────────────────
+      - type: conditional
+        conditions:
+          - condition: numeric_state
+            entity: sensor.tumble_dryer_error
+            above: 0
+        card:
+          type: markdown
+          content: "## ⚠️ Gabim TD! Kodi: **{{ states('sensor.tumble_dryer_error') }}**"
