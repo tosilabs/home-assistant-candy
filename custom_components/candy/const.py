@@ -1,4 +1,9 @@
-"""Constants for the Candy integration."""
+"""Constants for the Candy integration.
+
+This file now also documents the split between writable entities
+(numbers/selects) and their read‑only sensor counterparts to avoid
+confusion when configuring dashboards.
+"""
 
 DOMAIN = "candy"
 PLATFORMS = ["sensor", "binary_sensor", "button", "select", "number"]
@@ -15,11 +20,10 @@ DATA_KEY_TD_TIME = "td_time"
 DATA_KEY_WM_CATEGORY = "wm_category"
 DATA_KEY_TD_CATEGORY = "td_category"
 
-# Dispatcher signals
+# Dispatcher signal fired when user changes the WM program selection
 SIGNAL_WM_PROGRAM_CHANGED = "candy_{}_wm_program_changed"
 SIGNAL_WM_CATEGORY_CHANGED = "candy_{}_wm_category_changed"
 SIGNAL_TD_CATEGORY_CHANGED = "candy_{}_td_category_changed"
-SIGNAL_TD_PROGRAM_CHANGED = "candy_{}_td_program_changed"
 
 CONF_INTEGRATION_TITLE = "Candy"
 CONF_KEY_USE_ENCRYPTION = "use_encryption"
@@ -64,6 +68,7 @@ UNIQUE_ID_TUMBLE_PAUSE_BUTTON = "{0}-tumble_pause_button"
 UNIQUE_ID_TUMBLE_RESUME_BUTTON = "{0}-tumble_resume_button"
 UNIQUE_ID_TUMBLE_STOP_BUTTON = "{0}-tumble_stop_button"
 
+# Writable configuration entities (number / select)
 UNIQUE_ID_WM_TEMP = "{0}-wm_temperature"
 UNIQUE_ID_WM_SPIN = "{0}-wm_spin_speed"
 UNIQUE_ID_WM_SOIL = "{0}-wm_soil_level"
@@ -71,16 +76,14 @@ UNIQUE_ID_WM_STEAM = "{0}-wm_steam"
 UNIQUE_ID_TD_TIME_NUMBER = "{0}-td_time_number"
 UNIQUE_ID_TD_DRY_LEVEL_SELECT = "{0}-td_dry_level_select"
 
-# Read-only sensor unique IDs
+# Read-only sensor unique IDs (separate from the writable number/select entities)
 UNIQUE_ID_WM_PROGRAM_SENSOR = "{0}-wm_program_sensor"
 UNIQUE_ID_WM_TEMP_SENSOR = "{0}-wm_temp_sensor"
 UNIQUE_ID_WM_SPIN_SENSOR = "{0}-wm_spin_sensor"
 UNIQUE_ID_WM_SOIL_SENSOR = "{0}-wm_soil_sensor"
 UNIQUE_ID_WM_ERROR = "{0}-wm_error"
-UNIQUE_ID_WM_DELAY_START = "{0}-wm_delay_start"
 UNIQUE_ID_TD_DRY_LEVEL = "{0}-td_dry_level_sensor"
 UNIQUE_ID_TD_ERROR = "{0}-td_error"
-UNIQUE_ID_TD_DELAY_START = "{0}-td_delay_start"
 UNIQUE_ID_TD_DOOR = "{0}-td_door"
 UNIQUE_ID_TD_FILTER = "{0}-td_filter"
 UNIQUE_ID_TD_WATER_TANK = "{0}-td_water_tank"
