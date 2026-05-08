@@ -1,20 +1,11 @@
 {
   "domain": "candy",
   "name": "Candy",
-  "codeowners": [
-    "@ofalvai"
-  ],
-  "config_flow": true,
+  "version": "1.4.0",
+  "documentation": "https://github.com/tosilabs/home-assistant-candy",
+  "issue_tracker": "https://github.com/tosilabs/home-assistant-candy/issues",
   "dependencies": [],
-  "documentation": "https://github.com/ofalvai/home-assistant-candy",
-  "homekit": {},
-  "iot_class": "local_polling",
-  "issue_tracker": "https://github.com/ofalvai/home-assistant-candy/issues",
-  "requirements": [
-    "backoff~=2.0",
-    "aiolimiter~=1.0"
-  ],
-  "ssdp": [],
-  "version": "1.4.10",
-  "zeroconf": []
+  "codeowners": ["@tosilabs"],
+  "requirements": [],
+  "iot_class": "local_polling"
 }

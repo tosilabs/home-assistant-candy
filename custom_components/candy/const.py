@@ -15,10 +15,11 @@ DATA_KEY_TD_TIME = "td_time"
 DATA_KEY_WM_CATEGORY = "wm_category"
 DATA_KEY_TD_CATEGORY = "td_category"
 
-# Dispatcher signal fired when user changes the WM program selection
+# Dispatcher signals
 SIGNAL_WM_PROGRAM_CHANGED = "candy_{}_wm_program_changed"
 SIGNAL_WM_CATEGORY_CHANGED = "candy_{}_wm_category_changed"
 SIGNAL_TD_CATEGORY_CHANGED = "candy_{}_td_category_changed"
+SIGNAL_TD_PROGRAM_CHANGED = "candy_{}_td_program_changed"
 
 CONF_INTEGRATION_TITLE = "Candy"
 CONF_KEY_USE_ENCRYPTION = "use_encryption"
@@ -70,7 +71,7 @@ UNIQUE_ID_WM_STEAM = "{0}-wm_steam"
 UNIQUE_ID_TD_TIME_NUMBER = "{0}-td_time_number"
 UNIQUE_ID_TD_DRY_LEVEL_SELECT = "{0}-td_dry_level_select"
 
-# Read-only sensor unique IDs (separate from the writable number/select entities)
+# Read-only sensor unique IDs
 UNIQUE_ID_WM_PROGRAM_SENSOR = "{0}-wm_program_sensor"
 UNIQUE_ID_WM_TEMP_SENSOR = "{0}-wm_temp_sensor"
 UNIQUE_ID_WM_SPIN_SENSOR = "{0}-wm_spin_sensor"

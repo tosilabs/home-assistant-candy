@@ -6,24 +6,35 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.restore_state import RestoreEntity
+from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
 
 from .client.model import TumbleDryerStatus, WashingMachineStatus
-from .const import (DATA_KEY_COORDINATOR, DATA_KEY_TD_DRY_LEVEL, DATA_KEY_WM_SOIL, DATA_KEY_WM_STEAM,
-                    DEVICE_NAME_TUMBLE_DRYER, DEVICE_NAME_WASHING_MACHINE, DOMAIN,
-                    SIGNAL_WM_PROGRAM_CHANGED, SUGGESTED_AREA_BATHROOM,
-                    SUGGESTED_AREA_KITCHEN, UNIQUE_ID_WM_SOIL, UNIQUE_ID_WM_STEAM)
-from .programs import (TUMBLE_DRYER_PROGRAMS,
-                       TUMBLE_DRYER_PROGRAM_DESCRIPTIONS_SQ,
-                       TUMBLE_DRYER_PROGRAM_META_SQ,
-                       WASHING_MACHINE_PROGRAMS,
-                       WASHING_MACHINE_PROGRAMS_BY_NAME,
-                       WASHING_MACHINE_PROGRAM_DESCRIPTIONS_SQ,
-                       WASHING_MACHINE_PROGRAM_META_SQ)
+from .const import (
+    DATA_KEY_COORDINATOR,
+    DATA_KEY_TD_DRY_LEVEL,
+    DATA_KEY_WM_SOIL,
+    DATA_KEY_WM_STEAM,
+    DEVICE_NAME_TUMBLE_DRYER,
+    DEVICE_NAME_WASHING_MACHINE,
+    DOMAIN,
+    SIGNAL_WM_PROGRAM_CHANGED,
+    SIGNAL_TD_PROGRAM_CHANGED,
+    SUGGESTED_AREA_BATHROOM,
+    SUGGESTED_AREA_KITCHEN,
+    UNIQUE_ID_TD_DRY_LEVEL_SELECT,
+    UNIQUE_ID_WM_SOIL,
+    UNIQUE_ID_WM_STEAM,
+)
+from .programs import (
+    TUMBLE_DRYER_PROGRAMS,
+    TUMBLE_DRYER_PROGRAM_DESCRIPTIONS_SQ,
+    TUMBLE_DRYER_PROGRAM_META_SQ,
+    WASHING_MACHINE_PROGRAMS,
+    WASHING_MACHINE_PROGRAMS_BY_NAME,
+    WASHING_MACHINE_PROGRAM_DESCRIPTIONS_SQ,
+    WASHING_MACHINE_PROGRAM_META_SQ,
+)
 
-
-# Local fallback keys/signals used by select entities.
-# Kept local to avoid hard startup failures if const.py in deployed instances
-# is temporarily out-of-sync with select.py.
 DATA_KEY_WM_CATEGORY = "wm_category"
 DATA_KEY_TD_CATEGORY = "td_category"
 SIGNAL_WM_CATEGORY_CHANGED = "candy_{}_wm_category_changed"
@@ -39,6 +50,7 @@ _SOIL_FROM_VALUE = {None: "None", 0: "None", 1: "Light", 2: "Medium", 3: "Heavy"
 _STEAM_OPTIONS = ["Off", "Low", "High"]
 _STEAM_TO_VALUE = {"Off": 0, "Low": 1, "High": 2}
 _STEAM_FROM_VALUE = {0: "Off", 1: "Low", 2: "High"}
+
 _TD_DRY_LEVEL_OPTIONS = ["Auto", "Iron dry", "Dry hanger", "Dry wardrobe", "Extra dry"]
 _TD_DRY_LEVEL_TO_VALUE = {"Auto": 0, "Iron dry": 1, "Dry hanger": 2, "Dry wardrobe": 3, "Extra dry": 4}
 _TD_DRY_LEVEL_FROM_VALUE = {v: k for k, v in _TD_DRY_LEVEL_TO_VALUE.items()}
@@ -51,25 +63,48 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
 
     if isinstance(coordinator.data, WashingMachineStatus):
         async_add_entities([
-            CandyWashCategorySelect(config_id, entry_data),
-            CandyWashProgramSelect(config_id, entry_data),
-            CandyWashSoilLevelSelect(config_id, entry_data),
-            CandyWashSteamSelect(config_id, entry_data),
+            CandyWashCategorySelect(config_id, entry_data, coordinator),
+            CandyWashProgramSelect(config_id, entry_data, coordinator),
+            CandyWashSoilLevelSelect(config_id, entry_data, coordinator),
+            CandyWashSteamSelect(config_id, entry_data, coordinator),
         ])
     elif isinstance(coordinator.data, TumbleDryerStatus):
         async_add_entities([
-            CandyTumbleCategorySelect(config_id, entry_data),
-            CandyTumbleProgramSelect(config_id, entry_data),
-            CandyTumbleDryLevelSelect(config_id, entry_data),
+            CandyTumbleCategorySelect(config_id, entry_data, coordinator),
+            CandyTumbleProgramSelect(config_id, entry_data, coordinator),
+            CandyTumbleDryLevelSelect(config_id, entry_data, coordinator),
         ])
 
 
-class CandyWashProgramSelect(RestoreEntity, SelectEntity):
+class _CandySelectBase(RestoreEntity, SelectEntity):
+    """Mixin that exposes coordinator availability to all select entities."""
+
     _attr_has_entity_name = True
 
-    def __init__(self, config_id: str, entry_data: dict):
+    def __init__(self, config_id: str, entry_data: dict, coordinator: DataUpdateCoordinator):
         self.config_id = config_id
         self._entry_data = entry_data
+        self._coordinator = coordinator
+
+    @property
+    def available(self) -> bool:
+        return self._coordinator.last_update_success
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            self._coordinator.async_add_listener(self._handle_coordinator_update)
+        )
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self.async_write_ha_state()
+
+
+class CandyWashProgramSelect(_CandySelectBase):
+
+    def __init__(self, config_id: str, entry_data: dict, coordinator: DataUpdateCoordinator):
+        super().__init__(config_id, entry_data, coordinator)
         self._current_option = WASHING_MACHINE_PROGRAMS[0].name
 
     @property
@@ -155,13 +190,11 @@ class CandyWashProgramSelect(RestoreEntity, SelectEntity):
         self.async_write_ha_state()
 
 
-class CandyWashCategorySelect(RestoreEntity, SelectEntity):
-    _attr_has_entity_name = True
+class CandyWashCategorySelect(_CandySelectBase):
     _attr_entity_category = EntityCategory.CONFIG
 
-    def __init__(self, config_id: str, entry_data: dict):
-        self.config_id = config_id
-        self._entry_data = entry_data
+    def __init__(self, config_id: str, entry_data: dict, coordinator: DataUpdateCoordinator):
+        super().__init__(config_id, entry_data, coordinator)
         self._current = "All"
 
     @property
@@ -209,12 +242,10 @@ class CandyWashCategorySelect(RestoreEntity, SelectEntity):
         self._entry_data[DATA_KEY_WM_CATEGORY] = self._current
 
 
-class CandyWashSoilLevelSelect(RestoreEntity, SelectEntity):
-    _attr_has_entity_name = True
+class CandyWashSoilLevelSelect(_CandySelectBase):
 
-    def __init__(self, config_id: str, entry_data: dict):
-        self.config_id = config_id
-        self._entry_data = entry_data
+    def __init__(self, config_id: str, entry_data: dict, coordinator: DataUpdateCoordinator):
+        super().__init__(config_id, entry_data, coordinator)
         self._current = "Medium"
 
     @property
@@ -276,12 +307,10 @@ class CandyWashSoilLevelSelect(RestoreEntity, SelectEntity):
         self.async_write_ha_state()
 
 
-class CandyWashSteamSelect(RestoreEntity, SelectEntity):
-    _attr_has_entity_name = True
+class CandyWashSteamSelect(_CandySelectBase):
 
-    def __init__(self, config_id: str, entry_data: dict):
-        self.config_id = config_id
-        self._entry_data = entry_data
+    def __init__(self, config_id: str, entry_data: dict, coordinator: DataUpdateCoordinator):
+        super().__init__(config_id, entry_data, coordinator)
         self._current = "Off"
 
     @property
@@ -343,13 +372,11 @@ class CandyWashSteamSelect(RestoreEntity, SelectEntity):
         self.async_write_ha_state()
 
 
-class CandyTumbleCategorySelect(RestoreEntity, SelectEntity):
-    _attr_has_entity_name = True
+class CandyTumbleCategorySelect(_CandySelectBase):
     _attr_entity_category = EntityCategory.CONFIG
 
-    def __init__(self, config_id: str, entry_data: dict):
-        self.config_id = config_id
-        self._entry_data = entry_data
+    def __init__(self, config_id: str, entry_data: dict, coordinator: DataUpdateCoordinator):
+        super().__init__(config_id, entry_data, coordinator)
         self._current = "All"
 
     @property
@@ -397,12 +424,10 @@ class CandyTumbleCategorySelect(RestoreEntity, SelectEntity):
         self._entry_data[DATA_KEY_TD_CATEGORY] = self._current
 
 
-class CandyTumbleProgramSelect(RestoreEntity, SelectEntity):
-    _attr_has_entity_name = True
+class CandyTumbleProgramSelect(_CandySelectBase):
 
-    def __init__(self, config_id: str, entry_data: dict):
-        self.config_id = config_id
-        self._entry_data = entry_data
+    def __init__(self, config_id: str, entry_data: dict, coordinator: DataUpdateCoordinator):
+        super().__init__(config_id, entry_data, coordinator)
         self._current_option = TUMBLE_DRYER_PROGRAMS[0].name
 
     @property
@@ -453,6 +478,16 @@ class CandyTumbleProgramSelect(RestoreEntity, SelectEntity):
 
     async def async_select_option(self, option: str) -> None:
         self._current_option = option
+        # Notify CandyTumbleDryLevelSelect so it can sync to the program default
+        from homeassistant.helpers.dispatcher import async_dispatcher_send
+        from .programs import TUMBLE_DRYER_PROGRAMS_BY_NAME
+        prog = TUMBLE_DRYER_PROGRAMS_BY_NAME.get(option)
+        if prog:
+            async_dispatcher_send(
+                self.hass,
+                SIGNAL_TD_PROGRAM_CHANGED.format(self.config_id),
+                prog,
+            )
         self.async_write_ha_state()
 
     async def async_added_to_hass(self) -> None:
@@ -478,13 +513,11 @@ class CandyTumbleProgramSelect(RestoreEntity, SelectEntity):
         self.async_write_ha_state()
 
 
-class CandyTumbleDryLevelSelect(RestoreEntity, SelectEntity):
-    _attr_has_entity_name = True
+class CandyTumbleDryLevelSelect(_CandySelectBase):
     _attr_entity_category = EntityCategory.CONFIG
 
-    def __init__(self, config_id: str, entry_data: dict):
-        self.config_id = config_id
-        self._entry_data = entry_data
+    def __init__(self, config_id: str, entry_data: dict, coordinator: DataUpdateCoordinator):
+        super().__init__(config_id, entry_data, coordinator)
         self._current = "Auto"
 
     @property
@@ -526,6 +559,23 @@ class CandyTumbleDryLevelSelect(RestoreEntity, SelectEntity):
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
         last = await self.async_get_last_state()
-        if last and last.state in self.options:
+        if last and last.state in _TD_DRY_LEVEL_OPTIONS:
             self._current = last.state
             self._entry_data[DATA_KEY_TD_DRY_LEVEL] = _TD_DRY_LEVEL_TO_VALUE[self._current]
+
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                SIGNAL_TD_PROGRAM_CHANGED.format(self.config_id),
+                self._on_program_changed,
+            )
+        )
+
+    @callback
+    def _on_program_changed(self, prog) -> None:
+        """Sync dry level when user picks a new TD program."""
+        dry_val = getattr(prog, "dry_level", None)
+        option = _TD_DRY_LEVEL_FROM_VALUE.get(dry_val, "Auto")
+        self._current = option
+        self._entry_data[DATA_KEY_TD_DRY_LEVEL] = _TD_DRY_LEVEL_TO_VALUE[option]
+        self.async_write_ha_state()

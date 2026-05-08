@@ -1,0 +1,83 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Konfiguro Candy/Haier",
+        "description": "Fut të dhënat e pajisjes suaj Candy/Haier.",
+        "data": {
+          "ip_address": "Adresa IP",
+          "password": "Çelësi i enkriptimit (lëre bosh nëse nuk ka)",
+          "use_encryption": "Përdor enkriptimin"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Nuk mund të lidhet me pajisjen. Kontrollo adresën IP dhe rrjetin.",
+      "invalid_auth": "Çelësi i enkriptimit është i gabuar.",
+      "unknown": "Gabim i panjohur. Shiko logjet për detaje."
+    },
+    "abort": {
+      "already_configured": "Kjo pajisje është konfiguruar tashmë."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opsionet e Candy/Haier",
+        "data": {
+          "ip_address": "Adresa IP",
+          "password": "Çelësi i enkriptimit",
+          "use_encryption": "Përdor enkriptimin"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "washing_machine": { "name": "Makina larëse" },
+      "wash_cycle_status": { "name": "Statusi i ciklit" },
+      "wash_remaining_time": { "name": "Koha e mbetur" },
+      "wm_program_sensor": { "name": "Programi" },
+      "wm_temp_sensor": { "name": "Temperatura" },
+      "wm_spin_sensor": { "name": "Shpejtësia e centrifugës" },
+      "wm_soil_sensor": { "name": "Niveli i papastërtisë" },
+      "wm_error": { "name": "Gabim" },
+      "wm_delay_start": { "name": "Vonesë fillimi" },
+      "tumble_dryer": { "name": "Tharëse" },
+      "tumble_cycle_status": { "name": "Statusi i ciklit" },
+      "tumble_remaining_time": { "name": "Koha e mbetur" },
+      "td_dry_level_sensor": { "name": "Niveli i tharjes" },
+      "td_error": { "name": "Gabim" },
+      "td_delay_start": { "name": "Vonesë fillimi" }
+    },
+    "binary_sensor": {
+      "td_door": { "name": "Dera" },
+      "td_filter": { "name": "Filtri" },
+      "td_water_tank": { "name": "Rezervuari i ujit" }
+    },
+    "select": {
+      "wm_program_select": { "name": "Programi" },
+      "wm_category_select": { "name": "Kategoria" },
+      "wm_soil_level": { "name": "Niveli i papastërtisë" },
+      "wm_steam": { "name": "Avulli" },
+      "td_program_select": { "name": "Programi" },
+      "td_category_select": { "name": "Kategoria" },
+      "td_dry_level_select": { "name": "Niveli i tharjes" }
+    },
+    "button": {
+      "wash_start_button": { "name": "Fillo" },
+      "wash_pause_button": { "name": "Pauzë" },
+      "wash_resume_button": { "name": "Vazhdo" },
+      "wash_stop_button": { "name": "Ndalo" },
+      "tumble_start_button": { "name": "Fillo" },
+      "tumble_pause_button": { "name": "Pauzë" },
+      "tumble_resume_button": { "name": "Vazhdo" },
+      "tumble_stop_button": { "name": "Ndalo" }
+    },
+    "number": {
+      "wm_temperature": { "name": "Temperatura" },
+      "wm_spin_speed": { "name": "Shpejtësia e centrifugës" },
+      "td_time_number": { "name": "Koha" }
+    }
+  }
+}
