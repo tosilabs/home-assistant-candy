@@ -1,7 +1,40 @@
 # ============================================================
 # Candy — Washing Machine + Tumble Dryer
-# Home Assistant Lovelace Dashboard (një view, dy pajisje)
-# Kërkon: Mushroom Cards (HACS) → https://github.com/piitaya/lovelace-mushroom
+# Home Assistant Lovelace Dashboard
+# ⚠️  ENTITY IDs: zvendeso  <ENTRY_ID>  me entry_id-n tuaj
+#     Shko: Settings → Devices & Services → Candy → ⋮ → System Info
+#     P.sh. nese entry_id = abc123, atherë:
+#     {0}-washing_machine  behët  abc123-washing_machine
+# ============================================================
+#
+# SENSOR ID-t e plota (ndryshoji sipas entry_id tuaj):
+#
+# --- WASHING MACHINE ---
+# sensor.<slug>_machine_status          (Machine status)
+# sensor.<slug>_phase                   (Phase / Cycle status)
+# sensor.<slug>_time_remaining          (Time remaining)
+# sensor.<slug>_program                 (Program)
+# sensor.<slug>_temperature             (Temperature)
+# sensor.<slug>_spin                    (Spin)
+# sensor.<slug>_stain_type              (Stain type / Soil level)
+# sensor.<slug>_error                   (Error)
+# number.<slug>_temperature             (Temperature writable)
+# number.<slug>_spin_speed              (Spin speed writable)
+# select.<slug>_program                 (Program select)
+# select.<slug>_category                (Category select)
+# select.<slug>_soil_level              (Soil level select)
+# select.<slug>_steam                   (Steam select)
+#
+# --- TUMBLE DRYER ---
+# sensor.<slug>_machine_status_2        (Machine status)
+# sensor.<slug>_phase_2                 (Phase)
+# sensor.<slug>_time_remaining_2        (Time remaining)
+# sensor.<slug>_drying_level            (Drying level)
+# sensor.<slug>_error_2                 (Error)
+# number.<slug>_drying_in_time          (Drying time writable)
+# select.<slug>_drying_level            (Dry level select)
+#
+# SHENIM: <slug> zakonisht eshte 'candy' ose IP-ja e pajisjes
 # ============================================================
 
 title: Candy Laundry
@@ -9,199 +42,130 @@ views:
   - title: Laundry Room
     icon: mdi:hanger
     path: candy-laundry
+    badges: []
     cards:
 
-      # ════════════════════════════════════════════════════════
+      # ═══════════════════════════════════════
       #  🫧  WASHING MACHINE
-      # ════════════════════════════════════════════════════════
+      # ═══════════════════════════════════════
 
       - type: markdown
         content: "## 🫧 Washing Machine"
+        card_mod:
+          style: |
+            ha-card { background: none; box-shadow: none; padding: 0; }
 
-      # ── WM 1. STATUSI KRYESOR ───────────────────────────────
-      - type: custom:mushroom-template-card
-        primary: >
-          {% set s = states('sensor.washing_machine_machine_status') %}
-          {% if s == 'Running' %}🌀 Duke larë...
-          {% elif s == 'Paused' %}⏸️ Ndërprerë
-          {% elif s == 'Finished' %}✅ Larja përfundoi!
-          {% elif s == 'Delayed start' %}⏰ Start i vonuar
-          {% else %}💤 Gati{% endif %}
-        secondary: >
-          {% set prog = states('sensor.washing_machine_program') %}
-          {% set mins = states('sensor.washing_machine_time_remaining') | int(0) %}
-          {% if prog != 'No Program' and prog != 'unknown' %}{{ prog }}{% if mins > 0 %} — {{ mins }} min mbetur{% endif %}
-          {% else %}Nuk ka program aktiv{% endif %}
-        icon: >
-          {% set s = states('sensor.washing_machine_machine_status') %}
-          {% if s == 'Running' %}mdi:washing-machine
-          {% elif s == 'Paused' %}mdi:pause-circle
-          {% elif s == 'Finished' %}mdi:check-circle
-          {% else %}mdi:washing-machine-off{% endif %}
-        icon_color: >
-          {% set s = states('sensor.washing_machine_machine_status') %}
-          {% if s == 'Running' %}blue{% elif s == 'Paused' %}orange{% elif s == 'Finished' %}green{% else %}grey{% endif %}
-        tap_action:
-          action: none
+      # Hero statusi
+      - type: tile
+        entity: sensor.washing_machine_machine_status
+        name: Washing Machine
+        icon: mdi:washing-machine
+        color: blue
 
-      # ── WM 2. KOHA E MBETUR (vetëm kur aktive) ──────────────
+      # Koha e mbetur (conditional - vetëm kur jo Ready)
       - type: conditional
         conditions:
           - condition: state
             entity: sensor.washing_machine_machine_status
             state_not: Ready
         card:
-          type: custom:mushroom-template-card
-          primary: Koha e mbetur
-          secondary: "{{ states('sensor.washing_machine_time_remaining') }} minuta"
+          type: tile
+          entity: sensor.washing_machine_time_remaining
+          name: Koha e mbetur
           icon: mdi:progress-clock
-          icon_color: blue
-          badge_icon: >
-            {% if states('sensor.washing_machine_machine_status') == 'Paused' %}mdi:pause{% else %}mdi:play{% endif %}
-          badge_color: >
-            {% if states('sensor.washing_machine_machine_status') == 'Paused' %}orange{% else %}blue{% endif %}
+          color: blue
 
-      # ── WM 3. SENSORËT — grid 2 kolona ──────────────────────
-      - type: grid
-        columns: 2
-        square: false
-        cards:
-          - type: custom:mushroom-tile-card
-            entity: sensor.washing_machine_temperature
-            name: Temperatura
-            icon: mdi:thermometer
-            icon_color: red
-          - type: custom:mushroom-tile-card
-            entity: sensor.washing_machine_spin
-            name: Shpejtësia
-            icon: mdi:rotate-right
-            icon_color: blue
-          - type: custom:mushroom-tile-card
-            entity: sensor.washing_machine_phase
+      # Senzorët kryesorë
+      - type: entities
+        title: 📊 Senzorët
+        show_header_toggle: false
+        entities:
+          - entity: sensor.washing_machine_machine_status
+            name: Statusi
+            icon: mdi:information
+          - entity: sensor.washing_machine_phase
             name: Faza
             icon: mdi:state-machine
-            icon_color: teal
-          - type: custom:mushroom-tile-card
-            entity: sensor.washing_machine_stain_type
-            name: Lloji ndotjes
+          - entity: sensor.washing_machine_time_remaining
+            name: Koha mbetur
+            icon: mdi:timer-outline
+          - entity: sensor.washing_machine_program
+            name: Programi
+            icon: mdi:play-circle
+          - entity: sensor.washing_machine_temperature
+            name: Temperatura
+            icon: mdi:thermometer
+          - entity: sensor.washing_machine_spin
+            name: Shpejtësia
+            icon: mdi:rotate-right
+          - entity: sensor.washing_machine_stain_type
+            name: Niveli ndotjes
             icon: mdi:water-opacity
-            icon_color: indigo
-          - type: custom:mushroom-tile-card
-            entity: sensor.washing_machine_error
+          - entity: sensor.washing_machine_error
             name: Gabim
             icon: mdi:alert-circle
-            icon_color: grey
-          - type: custom:mushroom-tile-card
-            entity: sensor.washing_machine_cycles_total
-            name: Cikle totale
-            icon: mdi:counter
-            icon_color: purple
 
-      # ── WM 4. KONFIGURIM ─────────────────────────────────────
+      # Cilesimet e shkrueshme (select + number)
       - type: entities
-        title: ⚙️ Konfigurim — Washing Machine
+        title: 🎛️ Cilesimet e programit
         show_header_toggle: false
         entities:
-          - entity: sensor.washing_machine_door_lock
-            name: Bravë dere
-            icon: mdi:lock
-          - entity: sensor.washing_machine_door_open
-            name: Dera
-            icon: mdi:door
-          - entity: sensor.washing_machine_remote_control
-            name: Kontroll remote
-            icon: mdi:remote
-          - entity: sensor.washing_machine_energy_consumption_current
-            name: Energjia tani
-            icon: mdi:lightning-bolt
-          - entity: sensor.washing_machine_energy_consumption_total
-            name: Energjia totale
-            icon: mdi:lightning-bolt-circle
-          - entity: sensor.washing_machine_water_efficiency_current
-            name: Uji tani
-            icon: mdi:water
-          - entity: sensor.washing_machine_water_efficiency_total
-            name: Uji total
-            icon: mdi:water-check
-
-      # ── WM 5. SENSORS / OPSIONE ──────────────────────────────
-      - type: entities
-        title: 🧴 Sensors / Opsione
-        show_header_toggle: false
-        entities:
-          - entity: binary_sensor.washing_machine_autodose_detergent
-            name: Autodose Detergjent
-            icon: mdi:cup-water
-          - entity: binary_sensor.washing_machine_autodose_softener
-            name: Autodose Zbutes
-            icon: mdi:snowflake-variant
-          - entity: sensor.washing_machine_delay_start
-            name: Delay Start
-            icon: mdi:clock-start
-          - entity: binary_sensor.washing_machine_delay_start
-            name: Delay Start (ndezur)
-            icon: mdi:timer-play
-          - entity: binary_sensor.washing_machine_keep_fresh
-            name: Keep Fresh
-            icon: mdi:refresh-circle
-          - entity: sensor.washing_machine_number_of_rinses
-            name: Shpëlarje
-            icon: mdi:water-sync
-          - entity: binary_sensor.washing_machine_pre_wash
-            name: Para-larje
-            icon: mdi:tshirt-crew
-
-      # ── WM 6. NUMBER ENTITIES ────────────────────────────────
-      - type: entities
-        title: 🎛️ Cilësimet e programit
-        show_header_toggle: false
-        entities:
-          - entity: number.washing_machine_02_temperature
+          - entity: select.washing_machine_category
+            name: Kategoria
+            icon: mdi:shape-outline
+          - entity: select.washing_machine_program
+            name: Programi
+            icon: mdi:washing-machine
+          - entity: number.washing_machine_temperature
             name: Temperatura e synuar
             icon: mdi:thermometer-plus
-          - entity: number.washing_machine_05_spin_speed
+          - entity: number.washing_machine_spin_speed
             name: Shpejtësia e synuar
             icon: mdi:speedometer
+          - entity: select.washing_machine_soil_level
+            name: Niveli ndotjes
+            icon: mdi:water-opacity
+          - entity: select.washing_machine_steam
+            name: Avulli
+            icon: mdi:weather-fog
 
-      # ── WM 7. BUTONAT KONTROLLI ──────────────────────────────
-      - type: grid
-        columns: 2
-        square: false
+      # Butonat
+      - type: horizontal-stack
         cards:
-          - type: custom:mushroom-template-card
-            primary: Fillo
+          - type: button
+            name: Fillo
             icon: mdi:play
-            icon_color: green
+            icon_height: 40px
             tap_action:
-              action: call-service
-              service: candy.washing_machine_start
+              action: perform-action
+              perform_action: candy.washing_machine_start
               target: {}
-          - type: custom:mushroom-template-card
-            primary: Ndale
+          - type: button
+            name: Ndale
             icon: mdi:stop
-            icon_color: red
+            icon_height: 40px
             tap_action:
-              action: call-service
-              service: candy.washing_machine_stop
+              action: perform-action
+              perform_action: candy.washing_machine_stop
               target: {}
-          - type: custom:mushroom-template-card
-            primary: Pauzë
+          - type: button
+            name: Pauzë
             icon: mdi:pause
-            icon_color: orange
+            icon_height: 40px
             tap_action:
-              action: call-service
-              service: candy.washing_machine_pause
+              action: perform-action
+              perform_action: candy.washing_machine_pause
               target: {}
-          - type: custom:mushroom-template-card
-            primary: Rifillo
+          - type: button
+            name: Rifillo
             icon: mdi:play-pause
-            icon_color: blue
+            icon_height: 40px
             tap_action:
-              action: call-service
-              service: candy.washing_machine_resume
+              action: perform-action
+              perform_action: candy.washing_machine_resume
               target: {}
 
-      # ── WM 8. ALERT gabim ────────────────────────────────────
+      # Alert gabim (conditional)
       - type: conditional
         conditions:
           - condition: numeric_state
@@ -212,151 +176,120 @@ views:
           content: "## ⚠️ Gabim WM! Kodi: **{{ states('sensor.washing_machine_error') }}**"
 
 
-      # ════════════════════════════════════════════════════════
-      #  ── NDARËS VIZUAL ──────────────────────────────────────
-      # ════════════════════════════════════════════════════════
-
+      # ─── NDARËS VIZUAL ─────────────────────────────
       - type: markdown
-        content: "<hr style='border:none; border-top:2px solid var(--divider-color); margin:8px 0;'/>"
+        content: "<hr style='border: none; border-top: 2px solid var(--divider-color); margin: 4px 0;'/>"
+        card_mod:
+          style: |
+            ha-card { background: none; box-shadow: none; padding: 0; }
 
-      # ════════════════════════════════════════════════════════
+
+      # ═══════════════════════════════════════
       #  🌬️  TUMBLE DRYER
-      # ════════════════════════════════════════════════════════
+      # ═══════════════════════════════════════
 
       - type: markdown
         content: "## 🌬️ Tumble Dryer"
+        card_mod:
+          style: |
+            ha-card { background: none; box-shadow: none; padding: 0; }
 
-      # ── TD 1. STATUSI KRYESOR ───────────────────────────────
-      - type: custom:mushroom-template-card
-        primary: >
-          {% set s = states('sensor.tumble_dryer_machine_status') %}
-          {% if s == 'Running' %}♨️ Duke tharë...
-          {% elif s == 'Paused' %}⏸️ Ndërprerë
-          {% elif s == 'Finished' %}✅ Tharja përfundoi!
-          {% else %}💤 Gati{% endif %}
-        secondary: >
-          {% set mins = states('sensor.tumble_dryer_time_remaining') | int(0) %}
-          {% set phase = states('sensor.tumble_dryer_phase') %}
-          {% if mins > 0 %}{{ phase }} — {{ mins }} min mbetur
-          {% else %}Nuk ka program aktiv{% endif %}
-        icon: >
-          {% set s = states('sensor.tumble_dryer_machine_status') %}
-          {% if s == 'Running' %}mdi:tumble-dryer
-          {% elif s == 'Paused' %}mdi:pause-circle
-          {% elif s == 'Finished' %}mdi:check-circle
-          {% else %}mdi:tumble-dryer-off{% endif %}
-        icon_color: >
-          {% set s = states('sensor.tumble_dryer_machine_status') %}
-          {% if s == 'Running' %}deep-orange{% elif s == 'Paused' %}orange{% elif s == 'Finished' %}green{% else %}grey{% endif %}
-        tap_action:
-          action: none
+      # Hero statusi TD
+      - type: tile
+        entity: sensor.tumble_dryer_machine_status
+        name: Tumble Dryer
+        icon: mdi:tumble-dryer
+        color: deep-orange
 
-      # ── TD 2. KOHA E MBETUR (vetëm kur aktive) ──────────────
+      # Koha e mbetur TD (conditional)
       - type: conditional
         conditions:
           - condition: state
             entity: sensor.tumble_dryer_machine_status
             state_not: Idle
         card:
-          type: custom:mushroom-template-card
-          primary: Koha e mbetur
-          secondary: "{{ states('sensor.tumble_dryer_time_remaining') }} minuta"
+          type: tile
+          entity: sensor.tumble_dryer_time_remaining
+          name: Koha e mbetur
           icon: mdi:progress-clock
-          icon_color: deep-orange
-          badge_icon: >
-            {% if states('sensor.tumble_dryer_machine_status') == 'Paused' %}mdi:pause{% else %}mdi:play{% endif %}
-          badge_color: >
-            {% if states('sensor.tumble_dryer_machine_status') == 'Paused' %}orange{% else %}deep-orange{% endif %}
+          color: deep-orange
 
-      # ── TD 3. SENSORËT — grid 2 kolona ──────────────────────
-      - type: grid
-        columns: 2
-        square: false
-        cards:
-          - type: custom:mushroom-tile-card
-            entity: sensor.tumble_dryer_phase
-            name: Faza
-            icon: mdi:state-machine
-            icon_color: teal
-          - type: custom:mushroom-tile-card
-            entity: sensor.tumble_dryer_drying_level
-            name: Niveli tharjes
-            icon: mdi:hair-dryer
-            icon_color: deep-orange
-          - type: custom:mushroom-tile-card
-            entity: sensor.tumble_dryer_error
-            name: Gabim
-            icon: mdi:alert-circle
-            icon_color: grey
-          - type: custom:mushroom-tile-card
-            entity: sensor.tumble_dryer_machine_status
-            name: Statusi
-            icon: mdi:tumble-dryer
-            icon_color: deep-orange
-
-      # ── TD 4. SENSORË SPECIFIKË (filter, ujë, derë) ─────────
+      # Senzorët TD
       - type: entities
-        title: ⚙️ Konfigurim — Tumble Dryer
+        title: 📊 Senzorët
         show_header_toggle: false
         entities:
-          - entity: binary_sensor.tumble_dryer_door
-            name: Dera
-            icon: mdi:door
-          - entity: binary_sensor.tumble_dryer_filter
-            name: Filtri (pastro)
-            icon: mdi:air-filter
-          - entity: binary_sensor.tumble_dryer_water_tank
-            name: Rezervuari ujit
-            icon: mdi:water-well
+          - entity: sensor.tumble_dryer_machine_status
+            name: Statusi
+            icon: mdi:information
+          - entity: sensor.tumble_dryer_phase
+            name: Faza
+            icon: mdi:state-machine
+          - entity: sensor.tumble_dryer_time_remaining
+            name: Koha mbetur
+            icon: mdi:timer-outline
+          - entity: sensor.tumble_dryer_drying_level
+            name: Niveli tharjes
+            icon: mdi:hair-dryer
+          - entity: sensor.tumble_dryer_error
+            name: Gabim
+            icon: mdi:alert-circle
 
-      # ── TD 5. NUMBER ENTITY ──────────────────────────────────
+      # Cilësimet e shkrueshme TD
       - type: entities
         title: 🎛️ Cilësimet e tharjes
         show_header_toggle: false
         entities:
+          - entity: select.tumble_dryer_category
+            name: Kategoria
+            icon: mdi:shape-outline
+          - entity: select.tumble_dryer_program
+            name: Programi
+            icon: mdi:tumble-dryer
+          - entity: select.tumble_dryer_drying_level
+            name: Niveli tharjes
+            icon: mdi:tumble-dryer-alert
           - entity: number.tumble_dryer_drying_in_time
             name: Koha e tharjes
             icon: mdi:timer-outline
 
-      # ── TD 6. BUTONAT KONTROLLI ──────────────────────────────
-      - type: grid
-        columns: 2
-        square: false
+      # Butonat TD
+      - type: horizontal-stack
         cards:
-          - type: custom:mushroom-template-card
-            primary: Fillo
+          - type: button
+            name: Fillo
             icon: mdi:play
-            icon_color: green
+            icon_height: 40px
             tap_action:
-              action: call-service
-              service: candy.tumble_dryer_start
+              action: perform-action
+              perform_action: candy.tumble_dryer_start
               target: {}
-          - type: custom:mushroom-template-card
-            primary: Ndale
+          - type: button
+            name: Ndale
             icon: mdi:stop
-            icon_color: red
+            icon_height: 40px
             tap_action:
-              action: call-service
-              service: candy.tumble_dryer_stop
+              action: perform-action
+              perform_action: candy.tumble_dryer_stop
               target: {}
-          - type: custom:mushroom-template-card
-            primary: Pauzë
+          - type: button
+            name: Pauzë
             icon: mdi:pause
-            icon_color: orange
+            icon_height: 40px
             tap_action:
-              action: call-service
-              service: candy.tumble_dryer_pause
+              action: perform-action
+              perform_action: candy.tumble_dryer_pause
               target: {}
-          - type: custom:mushroom-template-card
-            primary: Rifillo
+          - type: button
+            name: Rifillo
             icon: mdi:play-pause
-            icon_color: deep-orange
+            icon_height: 40px
             tap_action:
-              action: call-service
-              service: candy.tumble_dryer_resume
+              action: perform-action
+              perform_action: candy.tumble_dryer_resume
               target: {}
 
-      # ── TD 7. ALERT gabim ────────────────────────────────────
+      # Alert gabim TD (conditional)
       - type: conditional
         conditions:
           - condition: numeric_state
