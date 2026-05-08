@@ -1,4 +1,9 @@
-"""Constants for the Candy integration."""
+"""Constants for the Candy integration.
+
+This file now also documents the split between writable entities
+(numbers/selects) and their read‑only sensor counterparts to avoid
+confusion when configuring dashboards.
+"""
 
 DOMAIN = "candy"
 PLATFORMS = ["sensor", "binary_sensor", "button", "select", "number"]
@@ -63,6 +68,7 @@ UNIQUE_ID_TUMBLE_PAUSE_BUTTON = "{0}-tumble_pause_button"
 UNIQUE_ID_TUMBLE_RESUME_BUTTON = "{0}-tumble_resume_button"
 UNIQUE_ID_TUMBLE_STOP_BUTTON = "{0}-tumble_stop_button"
 
+# Writable configuration entities
 UNIQUE_ID_WM_TEMP = "{0}-wm_temperature"
 UNIQUE_ID_WM_SPIN = "{0}-wm_spin_speed"
 UNIQUE_ID_WM_SOIL = "{0}-wm_soil_level"
