@@ -20,8 +20,9 @@ DATA_KEY_TD_TIME = "td_time"
 DATA_KEY_WM_CATEGORY = "wm_category"
 DATA_KEY_TD_CATEGORY = "td_category"
 
-# Dispatcher signal fired when user changes the WM program selection
+# Dispatcher signals fired when user changes program / category selections
 SIGNAL_WM_PROGRAM_CHANGED = "candy_{}_wm_program_changed"
+SIGNAL_TD_PROGRAM_CHANGED = "candy_{}_td_program_changed"
 SIGNAL_WM_CATEGORY_CHANGED = "candy_{}_wm_category_changed"
 SIGNAL_TD_CATEGORY_CHANGED = "candy_{}_td_category_changed"
 
