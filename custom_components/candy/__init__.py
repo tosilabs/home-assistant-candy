@@ -22,13 +22,16 @@ from .client.commands import (tumble_dryer_pause, tumble_dryer_resume,
                               tumble_dryer_start, tumble_dryer_stop,
                               washing_machine_pause, washing_machine_resume,
                               washing_machine_start, washing_machine_stop)
-from .client.model import TumbleDryerStatus, WashingMachineStatus
+from .client.model import MachineState, TumbleDryerStatus, WashingMachineStatus
 
 from .const import *
 
 _LOGGER = logging.getLogger(__name__)
 
 _HEX_RE = re.compile(r"^[0-9a-fA-F]+$")
+
+_POLL_INTERVAL_RUNNING = timedelta(seconds=30)
+_POLL_INTERVAL_IDLE = timedelta(seconds=60)
 
 
 def _hex_string(value: object) -> str:
@@ -99,6 +102,13 @@ TD_STOP_SCHEMA = _target_required({
 ENTRY_ONLY_SCHEMA = _target_required({})
 
 
+def _is_machine_running(data) -> bool:
+    """Return True when the appliance is actively running (use faster poll interval)."""
+    if isinstance(data, (WashingMachineStatus, TumbleDryerStatus)):
+        return data.machine_state == MachineState.RUNNING
+    return False
+
+
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     """Set up Candy from a config entry."""
 
@@ -122,7 +132,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
         hass,
         _LOGGER,
         name=DOMAIN,
-        update_interval=timedelta(seconds=60),
+        update_interval=_POLL_INTERVAL_IDLE,
         update_method=update_status,
     )
 
@@ -149,6 +159,17 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
         if unsub:
             unsub()
             entry_data[DATA_KEY_SETUP_RETRY_UNSUB] = None
+
+    @callback
+    def _adapt_poll_interval(_now=None) -> None:
+        """Switch poll interval between 30 s (running) and 60 s (idle)."""
+        if coordinator.data is not None:
+            coordinator.update_interval = (
+                _POLL_INTERVAL_RUNNING if _is_machine_running(coordinator.data)
+                else _POLL_INTERVAL_IDLE
+            )
+
+    coordinator.async_add_listener(_adapt_poll_interval)
 
     await coordinator.async_refresh()
     if coordinator.last_update_success and coordinator.data is not None:
@@ -178,9 +199,14 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    entry_data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
+    platforms_were_loaded = entry_data.get(DATA_KEY_PLATFORMS_LOADED, False)
+
+    unload_ok = True
+    if platforms_were_loaded:
+        unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
     if unload_ok:
-        entry_data = hass.data[DOMAIN].get(entry.entry_id)
         if entry_data:
             unsub = entry_data.get(DATA_KEY_SETUP_RETRY_UNSUB)
             if unsub:

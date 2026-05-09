@@ -11,14 +11,18 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpda
 from .client.model import TumbleDryerStatus, WashingMachineStatus
 from .const import (
     DATA_KEY_COORDINATOR,
+    DATA_KEY_TD_CATEGORY,
     DATA_KEY_TD_DRY_LEVEL,
+    DATA_KEY_WM_CATEGORY,
     DATA_KEY_WM_SOIL,
     DATA_KEY_WM_STEAM,
     DEVICE_NAME_TUMBLE_DRYER,
     DEVICE_NAME_WASHING_MACHINE,
     DOMAIN,
-    SIGNAL_WM_PROGRAM_CHANGED,
+    SIGNAL_TD_CATEGORY_CHANGED,
     SIGNAL_TD_PROGRAM_CHANGED,
+    SIGNAL_WM_CATEGORY_CHANGED,
+    SIGNAL_WM_PROGRAM_CHANGED,
     SUGGESTED_AREA_BATHROOM,
     SUGGESTED_AREA_KITCHEN,
     UNIQUE_ID_TD_DRY_LEVEL_SELECT,
@@ -35,11 +39,6 @@ from .programs import (
     WASHING_MACHINE_PROGRAM_META_SQ,
 )
 
-DATA_KEY_WM_CATEGORY = "wm_category"
-DATA_KEY_TD_CATEGORY = "td_category"
-SIGNAL_WM_CATEGORY_CHANGED = "candy_{}_wm_category_changed"
-SIGNAL_TD_CATEGORY_CHANGED = "candy_{}_td_category_changed"
-
 UNIQUE_ID_WM_PROGRAM_SELECT = "{0}-wm_program_select"
 UNIQUE_ID_TD_PROGRAM_SELECT = "{0}-td_program_select"
 
@@ -54,6 +53,24 @@ _STEAM_FROM_VALUE = {0: "Off", 1: "Low", 2: "High"}
 _TD_DRY_LEVEL_OPTIONS = ["Auto", "Iron dry", "Dry hanger", "Dry wardrobe", "Extra dry"]
 _TD_DRY_LEVEL_TO_VALUE = {"Auto": 0, "Iron dry": 1, "Dry hanger": 2, "Dry wardrobe": 3, "Extra dry": 4}
 _TD_DRY_LEVEL_FROM_VALUE = {v: k for k, v in _TD_DRY_LEVEL_TO_VALUE.items()}
+
+# Pre-compute program lists grouped by category to avoid repeated iteration.
+# These are rebuilt once at import time since the program list is static.
+_WM_PROGRAMS_BY_CATEGORY: dict[str, list[str]] = {}
+for _prog in WASHING_MACHINE_PROGRAMS:
+    _cat = WASHING_MACHINE_PROGRAM_META_SQ.get(_prog.name, {}).get("category", "Tjetër")
+    _WM_PROGRAMS_BY_CATEGORY.setdefault(_cat, []).append(_prog.name)
+_WM_ALL_PROGRAMS: list[str] = sorted(
+    [p.name for p in WASHING_MACHINE_PROGRAMS], key=str.casefold
+)
+
+_TD_PROGRAMS_BY_CATEGORY: dict[str, list[str]] = {}
+for _prog in TUMBLE_DRYER_PROGRAMS:
+    _cat = TUMBLE_DRYER_PROGRAM_META_SQ.get(_prog.name, {}).get("category", "Tjetër")
+    _TD_PROGRAMS_BY_CATEGORY.setdefault(_cat, []).append(_prog.name)
+_TD_ALL_PROGRAMS: list[str] = sorted(
+    [p.name for p in TUMBLE_DRYER_PROGRAMS], key=str.casefold
+)
 
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities):
@@ -117,13 +134,11 @@ class CandyWashProgramSelect(_CandySelectBase):
 
     @property
     def options(self) -> list[str]:
+        """Return cached program list for the selected category."""
         category = self._entry_data.get(DATA_KEY_WM_CATEGORY, "All")
-        names = []
-        for prog in WASHING_MACHINE_PROGRAMS:
-            prog_category = WASHING_MACHINE_PROGRAM_META_SQ.get(prog.name, {}).get("category", "Tjetër")
-            if category == "All" or prog_category == category:
-                names.append(prog.name)
-        return sorted(names, key=str.casefold)
+        if category == "All":
+            return _WM_ALL_PROGRAMS
+        return sorted(_WM_PROGRAMS_BY_CATEGORY.get(category, []), key=str.casefold)
 
     @property
     def current_option(self) -> str:
@@ -440,13 +455,11 @@ class CandyTumbleProgramSelect(_CandySelectBase):
 
     @property
     def options(self) -> list[str]:
+        """Return cached program list for the selected category."""
         category = self._entry_data.get(DATA_KEY_TD_CATEGORY, "All")
-        names = []
-        for prog in TUMBLE_DRYER_PROGRAMS:
-            prog_category = TUMBLE_DRYER_PROGRAM_META_SQ.get(prog.name, {}).get("category", "Tjetër")
-            if category == "All" or prog_category == category:
-                names.append(prog.name)
-        return sorted(names, key=str.casefold)
+        if category == "All":
+            return _TD_ALL_PROGRAMS
+        return sorted(_TD_PROGRAMS_BY_CATEGORY.get(category, []), key=str.casefold)
 
     @property
     def current_option(self) -> str:
@@ -478,7 +491,6 @@ class CandyTumbleProgramSelect(_CandySelectBase):
 
     async def async_select_option(self, option: str) -> None:
         self._current_option = option
-        # Notify CandyTumbleDryLevelSelect so it can sync to the program default
         from homeassistant.helpers.dispatcher import async_dispatcher_send
         from .programs import TUMBLE_DRYER_PROGRAMS_BY_NAME
         prog = TUMBLE_DRYER_PROGRAMS_BY_NAME.get(option)

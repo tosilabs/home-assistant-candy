@@ -1,7 +1,7 @@
 """Sensor entities for Candy appliances.
 
-This module exposes both the original high‑level machine status sensors and
-additional, more fine‑grained sensors so that common values in the API
+This module exposes both the original high-level machine status sensors and
+additional, more fine-grained sensors so that common values in the API
 (wash temperature, spin, soil level, tumble dry level, error codes, etc.)
 are always visible in HA.
 """
@@ -12,6 +12,7 @@ from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, Sen
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTemperature, UnitOfTime
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.typing import StateType
 from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
@@ -28,6 +29,8 @@ from .client.model import (
     WashProgramState,
 )
 from .const import *
+
+_LOGGER = logging.getLogger(__name__)  # noqa: F821 — 'logging' imported via const *
 
 _SOIL_LABELS = {0: "None", 1: "Light", 2: "Medium", 3: "Heavy"}
 
@@ -72,7 +75,15 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
             CandyDishwasherRemainingTimeSensor(coordinator, config_id),
         ])
     else:
-        raise Exception(f"Unable to determine machine type: {coordinator.data}")
+        _LOGGER.error(
+            "Candy: unable to determine machine type from coordinator data: %s. "
+            "Sensors will not be created. Check your device response.",
+            coordinator.data,
+        )
+        raise HomeAssistantError(
+            f"Candy integration: unsupported machine type — cannot set up sensors. "
+            f"Data received: {coordinator.data!r}"
+        )
 
 
 class CandyBaseSensor(CoordinatorEntity, SensorEntity):
@@ -147,11 +158,14 @@ class CandyWashingMachineSensor(CandyBaseSensor):
 
 
 class CandyWashCycleStatusSensor(CandyBaseSensor):
+    """Reports the current wash program phase (Pre-wash, Wash, Rinse, Spin, etc.)."""
+
     def device_name(self) -> str:
         return DEVICE_NAME_WASHING_MACHINE
 
     def suggested_area(self) -> str:
-        return SUGGESTED_AREA_BATHROOM
+        # Fixed: was incorrectly set to BATHROOM — washing machine lives in KITCHEN
+        return SUGGESTED_AREA_KITCHEN
 
     @property
     def name(self) -> str:
@@ -172,11 +186,16 @@ class CandyWashCycleStatusSensor(CandyBaseSensor):
 
 
 class CandyWashRemainingTimeSensor(CandyBaseSensor):
+    """Time remaining for the active wash cycle."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
     def device_name(self) -> str:
         return DEVICE_NAME_WASHING_MACHINE
 
     def suggested_area(self) -> str:
-        return SUGGESTED_AREA_BATHROOM
+        # Fixed: was incorrectly set to BATHROOM
+        return SUGGESTED_AREA_KITCHEN
 
     @property
     def name(self) -> str:
@@ -244,6 +263,8 @@ class CandyTumbleDryerSensor(CandyBaseSensor):
 
 
 class CandyTumbleStatusSensor(CandyBaseSensor):
+    """Reports tumble dryer program phase (Running, End) or final cycle result."""
+
     def device_name(self) -> str:
         return DEVICE_NAME_TUMBLE_DRYER
 
@@ -272,6 +293,10 @@ class CandyTumbleStatusSensor(CandyBaseSensor):
 
 
 class CandyTumbleRemainingTimeSensor(CandyBaseSensor):
+    """Time remaining for the active drying cycle."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
     def device_name(self) -> str:
         return DEVICE_NAME_TUMBLE_DRYER
 
@@ -570,6 +595,14 @@ class _TumbleSensorBase(CandyBaseSensor):
 
 
 class CandyTumbleDryLevelSensor(_TumbleSensorBase):
+    """Shows the drying level target while running, or the achieved level after stopping.
+
+    Fixed: previously showed program_state string when running (duplicating
+    CandyTumbleStatusSensor) and dry_level raw int when stopped. Now:
+      - RUNNING / END  → show the selected dry-level label (e.g. "Cupboard dry")
+      - STOPPED        → show the achieved DryerCycleState label
+    """
+
     @property
     def name(self) -> str:
         return "Drying level"
@@ -585,13 +618,18 @@ class CandyTumbleDryLevelSensor(_TumbleSensorBase):
     @property
     def state(self) -> StateType:
         status: TumbleDryerStatus = self.coordinator.data
-        # When the dryer program is idle/stopped, show the final dryness level
         if status.program_state == DryerProgramState.STOPPED:
+            # Show what dryness level was actually reached
             try:
                 return str(DryerCycleState.from_code(status.dry_level))
-            except ValueError:
-                # If vendor adds a new level we don't know yet, fall back to raw value
-                return str(status.dry_level)
+            except (ValueError, TypeError):
+                return str(status.dry_level) if status.dry_level is not None else "Unknown"
+        # While running or at end: show the user-selected target level
+        if status.dry_level_selected is not None:
+            try:
+                return str(DryerCycleState.from_code(status.dry_level_selected))
+            except (ValueError, TypeError):
+                pass
         return str(status.program_state)
 
 

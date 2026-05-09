@@ -4,10 +4,12 @@ Improvements in this revision:
 - Keep number entities in sync with last known API values on startup
 - Ensure entry_data cache is always initialized so services can read it
 - Minor naming cleanup for clarity in the HA UI
+- Temperature validation: only accept Candy-supported values (0,20,30,40,60,90°C)
 """
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.restore_state import RestoreEntity
@@ -28,6 +30,14 @@ from .const import (
     UNIQUE_ID_WM_SPIN,
     UNIQUE_ID_WM_TEMP,
 )
+
+# Valid Candy wash temperatures in °C. Values outside this set are rejected.
+_VALID_WASH_TEMPS = (0, 20, 30, 40, 60, 90)
+
+
+def _nearest_valid_temp(value: float) -> float:
+    """Snap a temperature value to the nearest valid Candy wash temperature."""
+    return float(min(_VALID_WASH_TEMPS, key=lambda t: abs(t - value)))
 
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities):
@@ -73,6 +83,9 @@ class CandyWashTemperatureNumber(_WashNumberBase):
     """Configured target wash temperature.
 
     This is the value sent when starting a new program, not a live sensor.
+    Only values supported by Candy appliances are accepted: 0, 20, 30, 40, 60, 90 °C.
+    Any value outside this set is snapped to the nearest valid temperature and a
+    warning is logged.
     """
 
     _attr_has_entity_name = True
@@ -86,7 +99,6 @@ class CandyWashTemperatureNumber(_WashNumberBase):
 
     def __init__(self, config_id: str, entry_data: dict):
         super().__init__(config_id, entry_data)
-        # Default if we have no previous state
         self._value = 40.0
 
     @property
@@ -95,7 +107,6 @@ class CandyWashTemperatureNumber(_WashNumberBase):
 
     @property
     def name(self) -> str:
-        # Numbered to appear in a logical order in HA UI
         return "02 Temperature"
 
     @property
@@ -103,24 +114,30 @@ class CandyWashTemperatureNumber(_WashNumberBase):
         return self._value
 
     async def async_set_native_value(self, value: float) -> None:
-        self._value = value
-        # Store as integer °C in shared entry data for the service layer
-        self._entry_data[DATA_KEY_WM_TEMP] = int(value)
+        snapped = _nearest_valid_temp(value)
+        if snapped != value:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Candy wash temperature %s°C is not a valid Candy value; "
+                "snapping to nearest valid temperature %s°C. "
+                "Valid values: %s",
+                value, snapped, _VALID_WASH_TEMPS,
+            )
+        self._value = snapped
+        self._entry_data[DATA_KEY_WM_TEMP] = int(snapped)
         self.async_write_ha_state()
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        # Restore last chosen temperature if available
         last = await self.async_get_last_state()
         if last and last.state not in ("unknown", "unavailable"):
             try:
-                self._value = float(last.state)
+                raw = float(last.state)
+                self._value = _nearest_valid_temp(raw)
                 self._entry_data[DATA_KEY_WM_TEMP] = int(self._value)
             except ValueError:
-                # Ignore bad persisted state and keep default
                 pass
 
-        # Keep in sync with program metadata so UI and underlying value match
         self.async_on_remove(
             async_dispatcher_connect(
                 self.hass,
@@ -132,8 +149,8 @@ class CandyWashTemperatureNumber(_WashNumberBase):
     @callback
     def _on_program_changed(self, prog) -> None:
         if prog.temp is not None:
-            self._value = float(prog.temp)
-            self._entry_data[DATA_KEY_WM_TEMP] = prog.temp
+            self._value = _nearest_valid_temp(float(prog.temp))
+            self._entry_data[DATA_KEY_WM_TEMP] = int(self._value)
             self.async_write_ha_state()
 
 
@@ -170,7 +187,6 @@ class CandyWashSpinSpeedNumber(_WashNumberBase):
 
     async def async_set_native_value(self, value: float) -> None:
         self._value = value
-        # API uses 0–15 where 1 == 100 rpm, so convert here
         self._entry_data[DATA_KEY_WM_SPIN] = int(value) // 100
         self.async_write_ha_state()
 
@@ -194,7 +210,6 @@ class CandyWashSpinSpeedNumber(_WashNumberBase):
 
     @callback
     def _on_program_changed(self, prog) -> None:
-        # Program metadata stores spin_target in 0–15 range; expose as rpm
         if prog.spin_target is not None:
             self._value = float(prog.spin_target * 100)
             self._entry_data[DATA_KEY_WM_SPIN] = prog.spin_target
@@ -202,7 +217,7 @@ class CandyWashSpinSpeedNumber(_WashNumberBase):
 
 
 class CandyTumbleTimeNumber(RestoreEntity, NumberEntity):
-    """Drying time selection for time‑based tumble dryer programs."""
+    """Drying time selection for time-based tumble dryer programs."""
 
     _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.CONFIG
