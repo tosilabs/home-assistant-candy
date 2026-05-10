@@ -15,6 +15,7 @@ DATA_KEY_WM_TEMP = "wm_temp"
 DATA_KEY_WM_SPIN = "wm_spin"
 DATA_KEY_WM_SOIL = "wm_soil"
 DATA_KEY_WM_STEAM = "wm_steam"
+DATA_KEY_WM_RINSE = "wm_rinse"
 DATA_KEY_TD_DRY_LEVEL = "td_dry_level"
 DATA_KEY_TD_TIME = "td_time"
 DATA_KEY_WM_CATEGORY = "wm_category"
@@ -69,13 +70,26 @@ UNIQUE_ID_TUMBLE_PAUSE_BUTTON = "{0}-tumble_pause_button"
 UNIQUE_ID_TUMBLE_RESUME_BUTTON = "{0}-tumble_resume_button"
 UNIQUE_ID_TUMBLE_STOP_BUTTON = "{0}-tumble_stop_button"
 
-# Writable configuration entities (number / select)
-UNIQUE_ID_WM_TEMP = "{0}-wm_temperature"
-UNIQUE_ID_WM_SPIN = "{0}-wm_spin_speed"
-UNIQUE_ID_WM_SOIL = "{0}-wm_soil_level"
-UNIQUE_ID_WM_STEAM = "{0}-wm_steam"
+# ---------------------------------------------------------------
+# Writable select entities  (used in select.py)
+# Prefixed with _01_ … _07_ so HA entity registry sorts them in
+# the correct display order: Category → Program → Temp → Spin → Soil → Steam → Rinse
+# ---------------------------------------------------------------
+UNIQUE_ID_WM_CATEGORY_SELECT   = "{0}-s01_wm_category"
+UNIQUE_ID_WM_PROGRAM_SELECT_V2 = "{0}-s02_wm_program"   # renamed to avoid clash with old ID
+UNIQUE_ID_WM_TEMP_SELECT        = "{0}-s03_wm_temperature"
+UNIQUE_ID_WM_SPIN_SELECT        = "{0}-s04_wm_spin_speed"
+UNIQUE_ID_WM_SOIL               = "{0}-s05_wm_soil_level"
+UNIQUE_ID_WM_STEAM              = "{0}-s06_wm_steam"
+UNIQUE_ID_WM_RINSE              = "{0}-s07_wm_rinse"
+
+# TD selects
+UNIQUE_ID_TD_DRY_LEVEL_SELECT   = "{0}-s02_td_dry_level_select"
+
+# Legacy number entity IDs (kept in registry but entities disabled/removed)
+UNIQUE_ID_WM_TEMP = "{0}-wm_temperature"      # old number entity — kept for migration
+UNIQUE_ID_WM_SPIN = "{0}-wm_spin_speed"        # old number entity — kept for migration
 UNIQUE_ID_TD_TIME_NUMBER = "{0}-td_time_number"
-UNIQUE_ID_TD_DRY_LEVEL_SELECT = "{0}-td_dry_level_select"
 
 # Read-only sensor unique IDs (separate from the writable number/select entities)
 UNIQUE_ID_WM_PROGRAM_SENSOR = "{0}-wm_program_sensor"

@@ -124,22 +124,38 @@ class CandyWashStartButton(_WashBase):
         prog = WASHING_MACHINE_PROGRAMS_BY_NAME.get(program_name)
         if prog is None:
             raise HomeAssistantError(f"Unknown program: {program_name}")
-        # Apply user overrides from the number/select entities when set
-        temp = self._entry_data.get(DATA_KEY_WM_TEMP, prog.temp)
-        spin = self._entry_data.get(DATA_KEY_WM_SPIN, prog.spin_target)
-        steam = self._entry_data.get(DATA_KEY_WM_STEAM, prog.steam)
+
+        # --- User overrides from select entities ---
+        # Temperature: entry_data stores raw °C integer
+        temp = self._entry_data.get(DATA_KEY_WM_TEMP)
+        if temp is None:
+            temp = prog.temp
+
+        # Spin: entry_data stores encoded value (rpm // 100)
+        spin_enc = self._entry_data.get(DATA_KEY_WM_SPIN)
+        if spin_enc is None:
+            spin_enc = prog.spin_target
+
+        # Steam
+        steam = self._entry_data.get(DATA_KEY_WM_STEAM)
         if steam is None:
             steam = prog.steam
+
+        # Soil level: entry_data stores raw soil value (1/2/3 or None)
+        soil = self._entry_data.get(DATA_KEY_WM_SOIL)
+        if soil is None:
+            soil = getattr(prog, "soil_level", None)
 
         plaintext = washing_machine_start(
             program=prog.program,
             temp_target=temp,
             temp_default=prog.temp,
-            spin_target=spin,
+            spin_target=spin_enc,
             spin_default=prog.spin_default,
             steam=steam,
             opt_mask=prog.opt_mask,
-            selection=prog.position,  # pass cloud selector position (Sel) for downloadable programs
+            selection=prog.position,
+            soil_level=soil,
         )
         self._entry_data[DATA_KEY_LAST_PROGRAM] = prog.program
         await _send(self._client, plaintext)
