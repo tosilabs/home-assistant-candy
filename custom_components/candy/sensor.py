@@ -5,6 +5,9 @@ additional, more fine-grained sensors so that common values in the API
 (wash temperature, spin, soil level, tumble dry level, error codes, etc.)
 are always visible in HA.
 """
+from __future__ import annotations
+
+import logging
 from abc import abstractmethod
 from typing import Any, Mapping
 
@@ -30,7 +33,7 @@ from .client.model import (
 )
 from .const import *
 
-_LOGGER = logging.getLogger(__name__)  # noqa: F821 — 'logging' imported via const *
+_LOGGER = logging.getLogger(__name__)
 
 _SOIL_LABELS = {0: "None", 1: "Light", 2: "Medium", 3: "Heavy"}
 
