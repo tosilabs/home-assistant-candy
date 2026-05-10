@@ -92,33 +92,63 @@ _TD_DRY_LEVEL_TO_VALUE = {"Auto": 0, "Iron dry": 1, "Dry hanger": 2, "Dry wardro
 _TD_DRY_LEVEL_FROM_VALUE = {v: k for k, v in _TD_DRY_LEVEL_TO_VALUE.items()}
 
 # ---------------------------------------------------------------------------
-# Valid Candy wash temperatures (°C) and spin speeds (×100 rpm)
+# Valid Candy wash temperatures (°C) and spin speeds (rpm, full values)
+#
+# IMPORTANT — Candy API encoding:
+#   spin_target in WashProgram is stored as rpm // 100
+#   e.g. spin_target=14 → 1400 rpm,  spin_target=8 → 800 rpm
+#   Always multiply by 100 before comparing with _VALID_SPINS.
+#
+#   temp in WashProgram is the DEFAULT temperature for that program.
+#   It is NOT a maximum — users can freely choose any valid temperature.
+#   We show all temperatures up to 90°C regardless of program default.
 # ---------------------------------------------------------------------------
 _VALID_TEMPS = [0, 20, 30, 40, 60, 90]
 _TEMP_LABELS = {0: "Cold", 20: "20°C", 30: "30°C", 40: "40°C", 60: "60°C", 90: "90°C"}
 _TEMP_FROM_LABEL = {v: k for k, v in _TEMP_LABELS.items()}
 
 _VALID_SPINS = [0, 400, 600, 800, 900, 1000, 1200, 1400, 1500]
-_SPIN_LABELS = {0: "No spin", 400: "400 rpm", 600: "600 rpm", 800: "800 rpm",
-                900: "900 rpm", 1000: "1000 rpm", 1200: "1200 rpm",
-                1400: "1400 rpm", 1500: "1500 rpm"}
+_SPIN_LABELS = {
+    0: "No spin", 400: "400 rpm", 600: "600 rpm", 800: "800 rpm",
+    900: "900 rpm", 1000: "1000 rpm", 1200: "1200 rpm",
+    1400: "1400 rpm", 1500: "1500 rpm",
+}
 _SPIN_FROM_LABEL = {v: k for k, v in _SPIN_LABELS.items()}
 
+# All temperature / spin option lists (static, shown as-is)
+_ALL_TEMP_OPTIONS: list[str] = [_TEMP_LABELS[t] for t in _VALID_TEMPS]
+_ALL_SPIN_OPTIONS: list[str] = [_SPIN_LABELS[s] for s in _VALID_SPINS]
 
-def _temp_options_for_program(prog) -> list[str]:
-    """Return valid temperature labels for the given program."""
-    max_t = getattr(prog, "temp_max", None) or getattr(prog, "temp", 90) or 90
-    if max_t == 255:
-        max_t = 90
-    return [_TEMP_LABELS[t] for t in _VALID_TEMPS if t <= max_t]
+
+def _decoded_spin_rpm(prog) -> int | None:
+    """Return spin speed in full RPM, decoding the Candy encoded value (rpm//100)."""
+    enc = getattr(prog, "spin_target", None)
+    if enc is None:
+        return None
+    # Values ≤ 20 are encoded (rpm//100); larger values are already in rpm
+    return enc * 100 if enc <= 20 else enc
 
 
 def _spin_options_for_program(prog) -> list[str]:
-    """Return valid spin speed labels for the given program."""
-    max_s = getattr(prog, "spin_max", None) or getattr(prog, "spin_target", 1500) or 1500
-    if max_s == 255:
-        max_s = 1500
-    return [_SPIN_LABELS[s] for s in _VALID_SPINS if s <= max_s]
+    """Return all spin labels up to the program's maximum spin speed.
+
+    spin_target on WashProgram is the DEFAULT (and effectively max) speed
+    in Candy-encoded units (rpm // 100).  We decode it first, then filter.
+    If spin_target is None the machine supports all speeds.
+    """
+    max_rpm = _decoded_spin_rpm(prog)
+    if max_rpm is None:
+        return _ALL_SPIN_OPTIONS
+    return [_SPIN_LABELS[s] for s in _VALID_SPINS if s <= max_rpm]
+
+
+def _temp_options_for_program(_prog) -> list[str]:
+    """Return all standard temperature options.
+
+    The WashProgram.temp field is only the *default* temperature, not a
+    hard maximum — the user should be free to pick any Candy-valid temp.
+    """
+    return _ALL_TEMP_OPTIONS
 
 
 # ---------------------------------------------------------------------------
@@ -146,7 +176,6 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
     coordinator = hass.data[DOMAIN][config_id][DATA_KEY_COORDINATOR]
     entry_data = hass.data[DOMAIN][config_id]
 
-    # Ensure all data keys are initialised
     entry_data.setdefault(DATA_KEY_WM_TEMP, None)
     entry_data.setdefault(DATA_KEY_WM_SPIN, None)
     entry_data.setdefault(DATA_KEY_WM_SOIL, None)
@@ -176,8 +205,6 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
 # ===========================================================================
 
 class _CandySelectBase(RestoreEntity, SelectEntity):
-    """Mixin that exposes coordinator availability to all select entities."""
-
     _attr_has_entity_name = True
 
     def __init__(self, config_id: str, entry_data: dict, coordinator: DataUpdateCoordinator):
@@ -205,42 +232,34 @@ class _CandySelectBase(RestoreEntity, SelectEntity):
 # ===========================================================================
 
 class CandyWashCategorySelect(_CandySelectBase):
-    """Filter programs by category (shown in Configuration section)."""
     _attr_entity_category = EntityCategory.CONFIG
 
-    def __init__(self, config_id: str, entry_data: dict, coordinator: DataUpdateCoordinator):
+    def __init__(self, config_id, entry_data, coordinator):
         super().__init__(config_id, entry_data, coordinator)
         self._current = "All"
 
     @property
-    def unique_id(self) -> str:
-        return UNIQUE_ID_WM_CATEGORY_SELECT.format(self.config_id)
+    def unique_id(self): return UNIQUE_ID_WM_CATEGORY_SELECT.format(self.config_id)
 
     @property
-    def name(self) -> str:
-        return "Category"
+    def name(self): return "Category"
 
     @property
     def options(self) -> list[str]:
-        categories = {meta.get("category", "Tjetër") for meta in WASHING_MACHINE_PROGRAM_META_SQ.values()}
-        return ["All", *sorted(categories)]
+        cats = {m.get("category", "Tjetër") for m in WASHING_MACHINE_PROGRAM_META_SQ.values()}
+        return ["All", *sorted(cats)]
 
     @property
-    def current_option(self) -> str:
-        return self._current
+    def current_option(self): return self._current
 
     @property
-    def icon(self) -> str:
-        return "mdi:shape-outline"
+    def icon(self): return "mdi:shape-outline"
 
     @property
     def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={(DOMAIN, self.config_id)},
-            name=DEVICE_NAME_WASHING_MACHINE,
-            manufacturer="Candy",
-            suggested_area=SUGGESTED_AREA_KITCHEN,
-        )
+        return DeviceInfo(identifiers={(DOMAIN, self.config_id)},
+                         name=DEVICE_NAME_WASHING_MACHINE, manufacturer="Candy",
+                         suggested_area=SUGGESTED_AREA_KITCHEN)
 
     async def async_select_option(self, option: str) -> None:
         self._current = option
@@ -263,41 +282,34 @@ class CandyWashCategorySelect(_CandySelectBase):
 
 class CandyWashProgramSelect(_CandySelectBase):
 
-    def __init__(self, config_id: str, entry_data: dict, coordinator: DataUpdateCoordinator):
+    def __init__(self, config_id, entry_data, coordinator):
         super().__init__(config_id, entry_data, coordinator)
         self._current_option = WASHING_MACHINE_PROGRAMS[0].name
 
     @property
-    def unique_id(self) -> str:
-        return UNIQUE_ID_WM_PROGRAM_SELECT_V2.format(self.config_id)
+    def unique_id(self): return UNIQUE_ID_WM_PROGRAM_SELECT_V2.format(self.config_id)
 
     @property
-    def name(self) -> str:
-        return "Program"
+    def name(self): return "Program"
 
     @property
     def options(self) -> list[str]:
-        category = self._entry_data.get(DATA_KEY_WM_CATEGORY, "All")
-        if category == "All":
+        cat = self._entry_data.get(DATA_KEY_WM_CATEGORY, "All")
+        if cat == "All":
             return _WM_ALL_PROGRAMS
-        return sorted(_WM_PROGRAMS_BY_CATEGORY.get(category, []), key=str.casefold)
+        return sorted(_WM_PROGRAMS_BY_CATEGORY.get(cat, []), key=str.casefold)
 
     @property
-    def current_option(self) -> str:
-        return self._current_option
+    def current_option(self): return self._current_option
 
     @property
-    def icon(self) -> str:
-        return "mdi:washing-machine"
+    def icon(self): return "mdi:washing-machine"
 
     @property
     def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={(DOMAIN, self.config_id)},
-            name=DEVICE_NAME_WASHING_MACHINE,
-            manufacturer="Candy",
-            suggested_area=SUGGESTED_AREA_KITCHEN,
-        )
+        return DeviceInfo(identifiers={(DOMAIN, self.config_id)},
+                         name=DEVICE_NAME_WASHING_MACHINE, manufacturer="Candy",
+                         suggested_area=SUGGESTED_AREA_KITCHEN)
 
     @property
     def extra_state_attributes(self) -> dict:
@@ -316,31 +328,23 @@ class CandyWashProgramSelect(_CandySelectBase):
         prog = WASHING_MACHINE_PROGRAMS_BY_NAME.get(option)
         if prog:
             from homeassistant.helpers.dispatcher import async_dispatcher_send
-            async_dispatcher_send(
-                self.hass,
-                SIGNAL_WM_PROGRAM_CHANGED.format(self.config_id),
-                prog,
-            )
+            async_dispatcher_send(self.hass, SIGNAL_WM_PROGRAM_CHANGED.format(self.config_id), prog)
         self.async_write_ha_state()
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        last_state = await self.async_get_last_state()
-        if last_state and last_state.state in self.options:
-            self._current_option = last_state.state
+        last = await self.async_get_last_state()
+        if last and last.state in self.options:
+            self._current_option = last.state
         elif self.options:
             self._current_option = self.options[0]
-
         self.async_on_remove(
-            async_dispatcher_connect(
-                self.hass,
-                SIGNAL_WM_CATEGORY_CHANGED.format(self.config_id),
-                self._on_category_changed,
-            )
+            async_dispatcher_connect(self.hass, SIGNAL_WM_CATEGORY_CHANGED.format(self.config_id),
+                                     self._on_category_changed)
         )
 
     @callback
-    def _on_category_changed(self, _category: str) -> None:
+    def _on_category_changed(self, _cat: str) -> None:
         if self._current_option not in self.options and self.options:
             self._current_option = self.options[0]
             self._entry_data["wm_program_name"] = self._current_option
@@ -352,45 +356,36 @@ class CandyWashProgramSelect(_CandySelectBase):
 # ===========================================================================
 
 class CandyWashTemperatureSelect(_CandySelectBase):
-    """Select wash temperature from the valid options for the selected program."""
+    """Temperature select — shows ALL valid Candy temps (0–90°C).
+    The program default is pre-selected when user changes program,
+    but the user can override to any value freely.
+    """
 
-    def __init__(self, config_id: str, entry_data: dict, coordinator: DataUpdateCoordinator):
+    def __init__(self, config_id, entry_data, coordinator):
         super().__init__(config_id, entry_data, coordinator)
         self._current = "40°C"
 
     @property
-    def unique_id(self) -> str:
-        return UNIQUE_ID_WM_TEMP_SELECT.format(self.config_id)
+    def unique_id(self): return UNIQUE_ID_WM_TEMP_SELECT.format(self.config_id)
 
     @property
-    def name(self) -> str:
-        return "Temperature"
+    def name(self): return "Temperature"
 
     @property
     def options(self) -> list[str]:
-        prog_name = self._entry_data.get("wm_program_name")
-        prog = WASHING_MACHINE_PROGRAMS_BY_NAME.get(prog_name) if prog_name else None
-        if prog:
-            opts = _temp_options_for_program(prog)
-            return opts if opts else list(_TEMP_LABELS.values())
-        return list(_TEMP_LABELS.values())
+        return _ALL_TEMP_OPTIONS
 
     @property
-    def current_option(self) -> str:
-        return self._current
+    def current_option(self): return self._current
 
     @property
-    def icon(self) -> str:
-        return "mdi:thermometer"
+    def icon(self): return "mdi:thermometer"
 
     @property
     def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={(DOMAIN, self.config_id)},
-            name=DEVICE_NAME_WASHING_MACHINE,
-            manufacturer="Candy",
-            suggested_area=SUGGESTED_AREA_KITCHEN,
-        )
+        return DeviceInfo(identifiers={(DOMAIN, self.config_id)},
+                         name=DEVICE_NAME_WASHING_MACHINE, manufacturer="Candy",
+                         suggested_area=SUGGESTED_AREA_KITCHEN)
 
     async def async_select_option(self, option: str) -> None:
         if option not in _TEMP_FROM_LABEL:
@@ -405,28 +400,22 @@ class CandyWashTemperatureSelect(_CandySelectBase):
         if last and last.state in _TEMP_FROM_LABEL:
             self._current = last.state
             self._entry_data[DATA_KEY_WM_TEMP] = _TEMP_FROM_LABEL[self._current]
-
         self.async_on_remove(
-            async_dispatcher_connect(
-                self.hass,
-                SIGNAL_WM_PROGRAM_CHANGED.format(self.config_id),
-                self._on_program_changed,
-            )
+            async_dispatcher_connect(self.hass, SIGNAL_WM_PROGRAM_CHANGED.format(self.config_id),
+                                     self._on_program_changed)
         )
 
     @callback
     def _on_program_changed(self, prog) -> None:
+        """Pre-select program's default temperature."""
         temp_val = getattr(prog, "temp", None)
-        if temp_val is not None and temp_val != 255:
-            # Find nearest valid temp label
+        if temp_val is not None and temp_val not in (0, 255):
             nearest = min(_VALID_TEMPS, key=lambda t: abs(t - temp_val))
             label = _TEMP_LABELS.get(nearest, "40°C")
+        elif temp_val == 0:
+            label = "Cold"
         else:
             label = "40°C"
-        # Clamp to available options for this program
-        opts = _temp_options_for_program(prog)
-        if opts and label not in opts:
-            label = opts[-1]  # pick highest available
         self._current = label
         self._entry_data[DATA_KEY_WM_TEMP] = _TEMP_FROM_LABEL.get(label, 40)
         self.async_write_ha_state()
@@ -437,19 +426,21 @@ class CandyWashTemperatureSelect(_CandySelectBase):
 # ===========================================================================
 
 class CandyWashSpinSelect(_CandySelectBase):
-    """Select spin speed from the valid options for the selected program."""
+    """Spin speed select.
 
-    def __init__(self, config_id: str, entry_data: dict, coordinator: DataUpdateCoordinator):
+    Shows all speeds up to the program's max (spin_target decoded from rpm//100).
+    Pre-selects the program default when user changes program.
+    """
+
+    def __init__(self, config_id, entry_data, coordinator):
         super().__init__(config_id, entry_data, coordinator)
         self._current = "1000 rpm"
 
     @property
-    def unique_id(self) -> str:
-        return UNIQUE_ID_WM_SPIN_SELECT.format(self.config_id)
+    def unique_id(self): return UNIQUE_ID_WM_SPIN_SELECT.format(self.config_id)
 
     @property
-    def name(self) -> str:
-        return "Spin speed"
+    def name(self): return "Spin speed"
 
     @property
     def options(self) -> list[str]:
@@ -457,33 +448,27 @@ class CandyWashSpinSelect(_CandySelectBase):
         prog = WASHING_MACHINE_PROGRAMS_BY_NAME.get(prog_name) if prog_name else None
         if prog:
             opts = _spin_options_for_program(prog)
-            return opts if opts else list(_SPIN_LABELS.values())
-        return list(_SPIN_LABELS.values())
+            return opts if opts else _ALL_SPIN_OPTIONS
+        return _ALL_SPIN_OPTIONS
 
     @property
-    def current_option(self) -> str:
-        return self._current
+    def current_option(self): return self._current
 
     @property
-    def icon(self) -> str:
-        return "mdi:rotate-right"
+    def icon(self): return "mdi:rotate-right"
 
     @property
     def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={(DOMAIN, self.config_id)},
-            name=DEVICE_NAME_WASHING_MACHINE,
-            manufacturer="Candy",
-            suggested_area=SUGGESTED_AREA_KITCHEN,
-        )
+        return DeviceInfo(identifiers={(DOMAIN, self.config_id)},
+                         name=DEVICE_NAME_WASHING_MACHINE, manufacturer="Candy",
+                         suggested_area=SUGGESTED_AREA_KITCHEN)
 
     async def async_select_option(self, option: str) -> None:
         if option not in _SPIN_FROM_LABEL:
             raise HomeAssistantError(f"Invalid spin option: {option}")
         self._current = option
         rpm = _SPIN_FROM_LABEL[option]
-        # Candy API encodes spin as rpm // 100  (e.g. 1000 rpm → 10)
-        self._entry_data[DATA_KEY_WM_SPIN] = rpm // 100
+        self._entry_data[DATA_KEY_WM_SPIN] = rpm // 100  # encode back to Candy format
         self.async_write_ha_state()
 
     async def async_added_to_hass(self) -> None:
@@ -492,25 +477,21 @@ class CandyWashSpinSelect(_CandySelectBase):
         if last and last.state in _SPIN_FROM_LABEL:
             self._current = last.state
             self._entry_data[DATA_KEY_WM_SPIN] = _SPIN_FROM_LABEL[self._current] // 100
-
         self.async_on_remove(
-            async_dispatcher_connect(
-                self.hass,
-                SIGNAL_WM_PROGRAM_CHANGED.format(self.config_id),
-                self._on_program_changed,
-            )
+            async_dispatcher_connect(self.hass, SIGNAL_WM_PROGRAM_CHANGED.format(self.config_id),
+                                     self._on_program_changed)
         )
 
     @callback
     def _on_program_changed(self, prog) -> None:
-        # spin_target on WashProgram is stored as rpm // 100
-        spin_enc = getattr(prog, "spin_target", None)
-        if spin_enc is not None:
-            rpm = spin_enc * 100 if spin_enc <= 20 else spin_enc  # handle both encodings
+        """Pre-select program default spin, clamped to available options."""
+        rpm = _decoded_spin_rpm(prog)
+        if rpm is not None:
             nearest = min(_VALID_SPINS, key=lambda s: abs(s - rpm))
             label = _SPIN_LABELS.get(nearest, "1000 rpm")
         else:
             label = "1000 rpm"
+        # Clamp to available options for this program
         opts = _spin_options_for_program(prog)
         if opts and label not in opts:
             label = opts[-1]
@@ -525,38 +506,30 @@ class CandyWashSpinSelect(_CandySelectBase):
 
 class CandyWashSoilLevelSelect(_CandySelectBase):
 
-    def __init__(self, config_id: str, entry_data: dict, coordinator: DataUpdateCoordinator):
+    def __init__(self, config_id, entry_data, coordinator):
         super().__init__(config_id, entry_data, coordinator)
         self._current = "Medium"
 
     @property
-    def unique_id(self) -> str:
-        return UNIQUE_ID_WM_SOIL.format(self.config_id)
+    def unique_id(self): return UNIQUE_ID_WM_SOIL.format(self.config_id)
 
     @property
-    def name(self) -> str:
-        return "Soil level"
+    def name(self): return "Soil level"
 
     @property
-    def options(self) -> list[str]:
-        return _SOIL_OPTIONS
+    def options(self): return _SOIL_OPTIONS
 
     @property
-    def current_option(self) -> str:
-        return self._current
+    def current_option(self): return self._current
 
     @property
-    def icon(self) -> str:
-        return "mdi:water-opacity"
+    def icon(self): return "mdi:water-opacity"
 
     @property
     def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={(DOMAIN, self.config_id)},
-            name=DEVICE_NAME_WASHING_MACHINE,
-            manufacturer="Candy",
-            suggested_area=SUGGESTED_AREA_KITCHEN,
-        )
+        return DeviceInfo(identifiers={(DOMAIN, self.config_id)},
+                         name=DEVICE_NAME_WASHING_MACHINE, manufacturer="Candy",
+                         suggested_area=SUGGESTED_AREA_KITCHEN)
 
     async def async_select_option(self, option: str) -> None:
         if option not in _SOIL_TO_VALUE:
@@ -571,13 +544,9 @@ class CandyWashSoilLevelSelect(_CandySelectBase):
         if last and last.state in _SOIL_OPTIONS:
             self._current = last.state
             self._entry_data[DATA_KEY_WM_SOIL] = _SOIL_TO_VALUE[self._current]
-
         self.async_on_remove(
-            async_dispatcher_connect(
-                self.hass,
-                SIGNAL_WM_PROGRAM_CHANGED.format(self.config_id),
-                self._on_program_changed,
-            )
+            async_dispatcher_connect(self.hass, SIGNAL_WM_PROGRAM_CHANGED.format(self.config_id),
+                                     self._on_program_changed)
         )
 
     @callback
@@ -594,38 +563,30 @@ class CandyWashSoilLevelSelect(_CandySelectBase):
 
 class CandyWashSteamSelect(_CandySelectBase):
 
-    def __init__(self, config_id: str, entry_data: dict, coordinator: DataUpdateCoordinator):
+    def __init__(self, config_id, entry_data, coordinator):
         super().__init__(config_id, entry_data, coordinator)
         self._current = "Off"
 
     @property
-    def unique_id(self) -> str:
-        return UNIQUE_ID_WM_STEAM.format(self.config_id)
+    def unique_id(self): return UNIQUE_ID_WM_STEAM.format(self.config_id)
 
     @property
-    def name(self) -> str:
-        return "Steam"
+    def name(self): return "Steam"
 
     @property
-    def options(self) -> list[str]:
-        return _STEAM_OPTIONS
+    def options(self): return _STEAM_OPTIONS
 
     @property
-    def current_option(self) -> str:
-        return self._current
+    def current_option(self): return self._current
 
     @property
-    def icon(self) -> str:
-        return "mdi:weather-fog"
+    def icon(self): return "mdi:weather-fog"
 
     @property
     def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={(DOMAIN, self.config_id)},
-            name=DEVICE_NAME_WASHING_MACHINE,
-            manufacturer="Candy",
-            suggested_area=SUGGESTED_AREA_KITCHEN,
-        )
+        return DeviceInfo(identifiers={(DOMAIN, self.config_id)},
+                         name=DEVICE_NAME_WASHING_MACHINE, manufacturer="Candy",
+                         suggested_area=SUGGESTED_AREA_KITCHEN)
 
     async def async_select_option(self, option: str) -> None:
         if option not in _STEAM_TO_VALUE:
@@ -640,13 +601,9 @@ class CandyWashSteamSelect(_CandySelectBase):
         if last and last.state in _STEAM_OPTIONS:
             self._current = last.state
             self._entry_data[DATA_KEY_WM_STEAM] = _STEAM_TO_VALUE[self._current]
-
         self.async_on_remove(
-            async_dispatcher_connect(
-                self.hass,
-                SIGNAL_WM_PROGRAM_CHANGED.format(self.config_id),
-                self._on_program_changed,
-            )
+            async_dispatcher_connect(self.hass, SIGNAL_WM_PROGRAM_CHANGED.format(self.config_id),
+                                     self._on_program_changed)
         )
 
     @callback
@@ -662,40 +619,31 @@ class CandyWashSteamSelect(_CandySelectBase):
 # ===========================================================================
 
 class CandyWashRinseSelect(_CandySelectBase):
-    """Extra rinse cycles (+0 to +3) added on top of the program default."""
 
-    def __init__(self, config_id: str, entry_data: dict, coordinator: DataUpdateCoordinator):
+    def __init__(self, config_id, entry_data, coordinator):
         super().__init__(config_id, entry_data, coordinator)
         self._current = "Normal"
 
     @property
-    def unique_id(self) -> str:
-        return UNIQUE_ID_WM_RINSE.format(self.config_id)
+    def unique_id(self): return UNIQUE_ID_WM_RINSE.format(self.config_id)
 
     @property
-    def name(self) -> str:
-        return "Rinse"
+    def name(self): return "Rinse"
 
     @property
-    def options(self) -> list[str]:
-        return _RINSE_OPTIONS
+    def options(self): return _RINSE_OPTIONS
 
     @property
-    def current_option(self) -> str:
-        return self._current
+    def current_option(self): return self._current
 
     @property
-    def icon(self) -> str:
-        return "mdi:water-sync"
+    def icon(self): return "mdi:water-sync"
 
     @property
     def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={(DOMAIN, self.config_id)},
-            name=DEVICE_NAME_WASHING_MACHINE,
-            manufacturer="Candy",
-            suggested_area=SUGGESTED_AREA_KITCHEN,
-        )
+        return DeviceInfo(identifiers={(DOMAIN, self.config_id)},
+                         name=DEVICE_NAME_WASHING_MACHINE, manufacturer="Candy",
+                         suggested_area=SUGGESTED_AREA_KITCHEN)
 
     async def async_select_option(self, option: str) -> None:
         if option not in _RINSE_TO_VALUE:
@@ -710,18 +658,13 @@ class CandyWashRinseSelect(_CandySelectBase):
         if last and last.state in _RINSE_OPTIONS:
             self._current = last.state
             self._entry_data[DATA_KEY_WM_RINSE] = _RINSE_TO_VALUE[self._current]
-
         self.async_on_remove(
-            async_dispatcher_connect(
-                self.hass,
-                SIGNAL_WM_PROGRAM_CHANGED.format(self.config_id),
-                self._on_program_changed,
-            )
+            async_dispatcher_connect(self.hass, SIGNAL_WM_PROGRAM_CHANGED.format(self.config_id),
+                                     self._on_program_changed)
         )
 
     @callback
     def _on_program_changed(self, prog) -> None:
-        # Reset rinse to Normal when changing program
         self._current = "Normal"
         self._entry_data[DATA_KEY_WM_RINSE] = 0
         self.async_write_ha_state()
@@ -734,39 +677,32 @@ class CandyWashRinseSelect(_CandySelectBase):
 class CandyTumbleCategorySelect(_CandySelectBase):
     _attr_entity_category = EntityCategory.CONFIG
 
-    def __init__(self, config_id: str, entry_data: dict, coordinator: DataUpdateCoordinator):
+    def __init__(self, config_id, entry_data, coordinator):
         super().__init__(config_id, entry_data, coordinator)
         self._current = "All"
 
     @property
-    def unique_id(self) -> str:
-        return f"{self.config_id}-s01_td_category"
+    def unique_id(self): return f"{self.config_id}-s01_td_category"
 
     @property
-    def name(self) -> str:
-        return "Category"
+    def name(self): return "Category"
 
     @property
     def options(self) -> list[str]:
-        categories = {meta.get("category", "Tjetër") for meta in TUMBLE_DRYER_PROGRAM_META_SQ.values()}
-        return ["All", *sorted(categories)]
+        cats = {m.get("category", "Tjetër") for m in TUMBLE_DRYER_PROGRAM_META_SQ.values()}
+        return ["All", *sorted(cats)]
 
     @property
-    def current_option(self) -> str:
-        return self._current
+    def current_option(self): return self._current
 
     @property
-    def icon(self) -> str:
-        return "mdi:shape-outline"
+    def icon(self): return "mdi:shape-outline"
 
     @property
     def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={(DOMAIN, self.config_id)},
-            name=DEVICE_NAME_TUMBLE_DRYER,
-            manufacturer="Candy",
-            suggested_area=SUGGESTED_AREA_BATHROOM,
-        )
+        return DeviceInfo(identifiers={(DOMAIN, self.config_id)},
+                         name=DEVICE_NAME_TUMBLE_DRYER, manufacturer="Candy",
+                         suggested_area=SUGGESTED_AREA_BATHROOM)
 
     async def async_select_option(self, option: str) -> None:
         self._current = option
@@ -789,41 +725,34 @@ class CandyTumbleCategorySelect(_CandySelectBase):
 
 class CandyTumbleProgramSelect(_CandySelectBase):
 
-    def __init__(self, config_id: str, entry_data: dict, coordinator: DataUpdateCoordinator):
+    def __init__(self, config_id, entry_data, coordinator):
         super().__init__(config_id, entry_data, coordinator)
         self._current_option = TUMBLE_DRYER_PROGRAMS[0].name
 
     @property
-    def unique_id(self) -> str:
-        return UNIQUE_ID_TD_PROGRAM_SELECT.format(self.config_id)
+    def unique_id(self): return UNIQUE_ID_TD_PROGRAM_SELECT.format(self.config_id)
 
     @property
-    def name(self) -> str:
-        return "Program"
+    def name(self): return "Program"
 
     @property
     def options(self) -> list[str]:
-        category = self._entry_data.get(DATA_KEY_TD_CATEGORY, "All")
-        if category == "All":
+        cat = self._entry_data.get(DATA_KEY_TD_CATEGORY, "All")
+        if cat == "All":
             return _TD_ALL_PROGRAMS
-        return sorted(_TD_PROGRAMS_BY_CATEGORY.get(category, []), key=str.casefold)
+        return sorted(_TD_PROGRAMS_BY_CATEGORY.get(cat, []), key=str.casefold)
 
     @property
-    def current_option(self) -> str:
-        return self._current_option
+    def current_option(self): return self._current_option
 
     @property
-    def icon(self) -> str:
-        return "mdi:tumble-dryer"
+    def icon(self): return "mdi:tumble-dryer"
 
     @property
     def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={(DOMAIN, self.config_id)},
-            name=DEVICE_NAME_TUMBLE_DRYER,
-            manufacturer="Candy",
-            suggested_area=SUGGESTED_AREA_BATHROOM,
-        )
+        return DeviceInfo(identifiers={(DOMAIN, self.config_id)},
+                         name=DEVICE_NAME_TUMBLE_DRYER, manufacturer="Candy",
+                         suggested_area=SUGGESTED_AREA_BATHROOM)
 
     @property
     def extra_state_attributes(self) -> dict:
@@ -842,31 +771,23 @@ class CandyTumbleProgramSelect(_CandySelectBase):
         from .programs import TUMBLE_DRYER_PROGRAMS_BY_NAME
         prog = TUMBLE_DRYER_PROGRAMS_BY_NAME.get(option)
         if prog:
-            async_dispatcher_send(
-                self.hass,
-                SIGNAL_TD_PROGRAM_CHANGED.format(self.config_id),
-                prog,
-            )
+            async_dispatcher_send(self.hass, SIGNAL_TD_PROGRAM_CHANGED.format(self.config_id), prog)
         self.async_write_ha_state()
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        last_state = await self.async_get_last_state()
-        if last_state and last_state.state in self.options:
-            self._current_option = last_state.state
+        last = await self.async_get_last_state()
+        if last and last.state in self.options:
+            self._current_option = last.state
         elif self.options:
             self._current_option = self.options[0]
-
         self.async_on_remove(
-            async_dispatcher_connect(
-                self.hass,
-                SIGNAL_TD_CATEGORY_CHANGED.format(self.config_id),
-                self._on_category_changed,
-            )
+            async_dispatcher_connect(self.hass, SIGNAL_TD_CATEGORY_CHANGED.format(self.config_id),
+                                     self._on_category_changed)
         )
 
     @callback
-    def _on_category_changed(self, _category: str) -> None:
+    def _on_category_changed(self, _cat: str) -> None:
         if self._current_option not in self.options and self.options:
             self._current_option = self.options[0]
         self.async_write_ha_state()
@@ -879,38 +800,30 @@ class CandyTumbleProgramSelect(_CandySelectBase):
 class CandyTumbleDryLevelSelect(_CandySelectBase):
     _attr_entity_category = EntityCategory.CONFIG
 
-    def __init__(self, config_id: str, entry_data: dict, coordinator: DataUpdateCoordinator):
+    def __init__(self, config_id, entry_data, coordinator):
         super().__init__(config_id, entry_data, coordinator)
         self._current = "Auto"
 
     @property
-    def unique_id(self) -> str:
-        return UNIQUE_ID_TD_DRY_LEVEL_SELECT.format(self.config_id)
+    def unique_id(self): return UNIQUE_ID_TD_DRY_LEVEL_SELECT.format(self.config_id)
 
     @property
-    def name(self) -> str:
-        return "Drying level"
+    def name(self): return "Drying level"
 
     @property
-    def options(self) -> list[str]:
-        return _TD_DRY_LEVEL_OPTIONS
+    def options(self): return _TD_DRY_LEVEL_OPTIONS
 
     @property
-    def current_option(self) -> str:
-        return self._current
+    def current_option(self): return self._current
 
     @property
-    def icon(self) -> str:
-        return "mdi:tumble-dryer-alert"
+    def icon(self): return "mdi:tumble-dryer-alert"
 
     @property
     def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={(DOMAIN, self.config_id)},
-            name=DEVICE_NAME_TUMBLE_DRYER,
-            manufacturer="Candy",
-            suggested_area=SUGGESTED_AREA_BATHROOM,
-        )
+        return DeviceInfo(identifiers={(DOMAIN, self.config_id)},
+                         name=DEVICE_NAME_TUMBLE_DRYER, manufacturer="Candy",
+                         suggested_area=SUGGESTED_AREA_BATHROOM)
 
     async def async_select_option(self, option: str) -> None:
         if option not in _TD_DRY_LEVEL_TO_VALUE:
@@ -925,13 +838,9 @@ class CandyTumbleDryLevelSelect(_CandySelectBase):
         if last and last.state in _TD_DRY_LEVEL_OPTIONS:
             self._current = last.state
             self._entry_data[DATA_KEY_TD_DRY_LEVEL] = _TD_DRY_LEVEL_TO_VALUE[self._current]
-
         self.async_on_remove(
-            async_dispatcher_connect(
-                self.hass,
-                SIGNAL_TD_PROGRAM_CHANGED.format(self.config_id),
-                self._on_program_changed,
-            )
+            async_dispatcher_connect(self.hass, SIGNAL_TD_PROGRAM_CHANGED.format(self.config_id),
+                                     self._on_program_changed)
         )
 
     @callback
