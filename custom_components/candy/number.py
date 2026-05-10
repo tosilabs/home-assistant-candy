@@ -1,15 +1,11 @@
-"""Number entities for Candy washing machine and tumble dryer adjustable settings.
+"""Number entities for Candy washing machine and tumble dryer adjustable settings."""
+from __future__ import annotations
 
-Improvements in this revision:
-- Keep number entities in sync with last known API values on startup
-- Ensure entry_data cache is always initialized so services can read it
-- Minor naming cleanup for clarity in the HA UI
-- Temperature validation: only accept Candy-supported values (0,20,30,40,60,90°C)
-"""
+import logging
+
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.restore_state import RestoreEntity
@@ -31,40 +27,35 @@ from .const import (
     UNIQUE_ID_WM_TEMP,
 )
 
-# Valid Candy wash temperatures in °C. Values outside this set are rejected.
+_LOGGER = logging.getLogger(__name__)
+
+# Valid Candy wash temperatures in °C.
 _VALID_WASH_TEMPS = (0, 20, 30, 40, 60, 90)
 
 
 def _nearest_valid_temp(value: float) -> float:
-    """Snap a temperature value to the nearest valid Candy wash temperature."""
     return float(min(_VALID_WASH_TEMPS, key=lambda t: abs(t - value)))
 
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities):
-    """Set up Candy number entities for a config entry."""
     config_id = config_entry.entry_id
     entry_data = hass.data[DOMAIN][config_id]
     coordinator = entry_data[DATA_KEY_COORDINATOR]
 
-    # Ensure the shared dict has defaults so services can safely read values
     entry_data.setdefault(DATA_KEY_WM_TEMP, None)
     entry_data.setdefault(DATA_KEY_WM_SPIN, None)
     entry_data.setdefault(DATA_KEY_TD_TIME, None)
 
     if isinstance(coordinator.data, WashingMachineStatus):
-        async_add_entities(
-            [
-                CandyWashTemperatureNumber(config_id, entry_data),
-                CandyWashSpinSpeedNumber(config_id, entry_data),
-            ]
-        )
+        async_add_entities([
+            CandyWashTemperatureNumber(config_id, entry_data),
+            CandyWashSpinSpeedNumber(config_id, entry_data),
+        ])
     elif isinstance(coordinator.data, TumbleDryerStatus):
         async_add_entities([CandyTumbleTimeNumber(config_id, entry_data)])
 
 
 class _WashNumberBase(RestoreEntity, NumberEntity):
-    """Base class for washing machine number entities."""
-
     def __init__(self, config_id: str, entry_data: dict):
         self.config_id = config_id
         self._entry_data = entry_data
@@ -80,14 +71,6 @@ class _WashNumberBase(RestoreEntity, NumberEntity):
 
 
 class CandyWashTemperatureNumber(_WashNumberBase):
-    """Configured target wash temperature.
-
-    This is the value sent when starting a new program, not a live sensor.
-    Only values supported by Candy appliances are accepted: 0, 20, 30, 40, 60, 90 °C.
-    Any value outside this set is snapped to the nearest valid temperature and a
-    warning is logged.
-    """
-
     _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.CONFIG
     _attr_icon = "mdi:thermometer"
@@ -107,7 +90,7 @@ class CandyWashTemperatureNumber(_WashNumberBase):
 
     @property
     def name(self) -> str:
-        return "02 Temperature"
+        return "Temperature"
 
     @property
     def native_value(self) -> float:
@@ -116,11 +99,9 @@ class CandyWashTemperatureNumber(_WashNumberBase):
     async def async_set_native_value(self, value: float) -> None:
         snapped = _nearest_valid_temp(value)
         if snapped != value:
-            import logging
-            logging.getLogger(__name__).warning(
+            _LOGGER.warning(
                 "Candy wash temperature %s°C is not a valid Candy value; "
-                "snapping to nearest valid temperature %s°C. "
-                "Valid values: %s",
+                "snapping to nearest valid temperature %s°C. Valid values: %s",
                 value, snapped, _VALID_WASH_TEMPS,
             )
         self._value = snapped
@@ -155,12 +136,6 @@ class CandyWashTemperatureNumber(_WashNumberBase):
 
 
 class CandyWashSpinSpeedNumber(_WashNumberBase):
-    """Configured target spin speed.
-
-    Value is stored as rpm for the UI but converted back to the internal
-    API representation (hundreds of rpm) in the shared entry data.
-    """
-
     _attr_has_entity_name = True
     _attr_icon = "mdi:rotate-right"
     _attr_native_min_value = 0
@@ -179,7 +154,7 @@ class CandyWashSpinSpeedNumber(_WashNumberBase):
 
     @property
     def name(self) -> str:
-        return "05 Spin speed"
+        return "Spin speed"
 
     @property
     def native_value(self) -> float:
@@ -217,8 +192,6 @@ class CandyWashSpinSpeedNumber(_WashNumberBase):
 
 
 class CandyTumbleTimeNumber(RestoreEntity, NumberEntity):
-    """Drying time selection for time-based tumble dryer programs."""
-
     _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.CONFIG
     _attr_icon = "mdi:timer-outline"
@@ -239,7 +212,7 @@ class CandyTumbleTimeNumber(RestoreEntity, NumberEntity):
 
     @property
     def name(self) -> str:
-        return "Drying in time"
+        return "Drying time"
 
     @property
     def native_value(self) -> float:

@@ -226,14 +226,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 def _resolve_entry_id(hass: HomeAssistant, call: ServiceCall) -> str:
-    """Resolve the Candy config entry id from a service call.
-
-    Accepts either:
-      - explicit `entry_id` (legacy), or
-      - HA target `device_id` (preferred — populated by the device selector)
-
-    If multiple device_ids are passed, the first one that maps to a Candy entry wins.
-    """
+    """Resolve the Candy config entry id from a service call."""
     explicit = call.data.get("entry_id")
     if explicit:
         return explicit
@@ -298,10 +291,9 @@ def _async_register_services(hass: HomeAssistant) -> None:
         program = call.data[ATTR_PROGRAM]
         plaintext = washing_machine_start(
             program=program,
-            temp=call.data.get(ATTR_TEMP),
+            temp_target=call.data.get(ATTR_TEMP),
             spin_target=call.data.get(ATTR_SPIN_TARGET),
             spin_default=call.data.get(ATTR_SPIN_DEFAULT),
-            soil_level=call.data.get(ATTR_SOIL_LEVEL),
             steam=call.data.get(ATTR_STEAM, 0),
         )
         entry_id = _resolve_entry_id(hass, call)
