@@ -72,3 +72,13 @@ async def test_missing_temperature_default_is_not_changed_to_40(hass):
     temp._on_program_changed(WASHING_MACHINE_PROGRAMS_BY_NAME["Perfect 20"])
     assert temp.current_option == "Program default"
     assert data[DATA_KEY_WM_TEMP] is None
+
+
+async def test_every_catalogue_spin_default_survives_display_roundtrip(hass):
+    from custom_components.candy.programs import WASHING_MACHINE_PROGRAMS
+    for recipe in WASHING_MACHINE_PROGRAMS:
+        data = {}
+        select_wash_program(data, recipe.name)
+        spin = entity(CandyWashSpinSelect, hass, data)
+        spin._on_program_changed(recipe)
+        assert data[DATA_KEY_WM_SPIN] == recipe.spin_target, recipe.name

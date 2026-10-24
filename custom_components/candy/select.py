@@ -109,11 +109,11 @@ _VALID_TEMPS = [0, 20, 30, 40, 60, 90]
 _TEMP_LABELS = {0: "Cold", 20: "20°C", 30: "30°C", 40: "40°C", 60: "60°C", 90: "90°C"}
 _TEMP_FROM_LABEL = {v: k for k, v in _TEMP_LABELS.items()}
 
-_VALID_SPINS = [0, 400, 600, 800, 900, 1000, 1200, 1400, 1500]
+_VALID_SPINS = [0, 400, 600, 700, 800, 900, 1000, 1200, 1300, 1400, 1500]
 _SPIN_LABELS = {
-    0: "No spin", 400: "400 rpm", 600: "600 rpm", 800: "800 rpm",
+    0: "No spin", 400: "400 rpm", 600: "600 rpm", 700: "700 rpm", 800: "800 rpm",
     900: "900 rpm", 1000: "1000 rpm", 1200: "1200 rpm",
-    1400: "1400 rpm", 1500: "1500 rpm",
+    1300: "1300 rpm", 1400: "1400 rpm", 1500: "1500 rpm",
 }
 _SPIN_FROM_LABEL = {v: k for k, v in _SPIN_LABELS.items()}
 
