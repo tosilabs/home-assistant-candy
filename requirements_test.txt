@@ -3,6 +3,8 @@
 pytest-homeassistant-custom-component==0.13.145
 # HA 2024.7's ACME client still imports ComparableX509, removed in josepy 2.
 josepy==1.14.0
+# This HA/pytest release predates pycares 5's background DNS shutdown thread.
+pycares==4.4.0
 
 # Component dependencies
 backoff~=2.2.1
