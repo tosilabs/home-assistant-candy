@@ -13,6 +13,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.update_coordinator import (CoordinatorEntity,
                                                       DataUpdateCoordinator)
 
+from .program_options import resolve_dry_name
 from .start_status import start_outcome, status_snapshot
 from .wash_settings import PROGRAM_NAME, wash_command_parameters, select_wash_program
 from .client import CandyClient
@@ -317,7 +318,7 @@ class CandyTumbleStartButton(_TumbleBase):
         state = self._hass.states.get(entry)
         if state is None:
             raise HomeAssistantError("Tumble program select entity has no state")
-        program_name = state.state
+        program_name = resolve_dry_name(state.state)
         prog = TUMBLE_DRYER_PROGRAMS_BY_NAME.get(program_name)
         if prog is None:
             raise HomeAssistantError(f"Unknown program: {program_name}")

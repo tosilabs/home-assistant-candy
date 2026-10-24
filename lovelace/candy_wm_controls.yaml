@@ -24,10 +24,8 @@ views:
         title: 1 · Zgjidh programin
         show_header_toggle: false
         entities:
-          - entity: select.washing_machine_category
-            name: Kategoria
           - entity: select.washing_machine_program
-            name: Programi i zgjedhur
+            name: Kategoria dhe programi
       - type: markdown
         title: Për çfarë shërben ky program?
         content: >-

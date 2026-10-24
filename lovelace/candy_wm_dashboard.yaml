@@ -138,9 +138,6 @@ views:
         title: 🎛️ Cilësimet e programit
         show_header_toggle: false
         entities:
-          - entity: select.washing_machine_category
-            name: Kategoria
-            icon: mdi:shape-outline
           - entity: select.washing_machine_program
             name: Programi
             icon: mdi:washing-machine
@@ -328,9 +325,6 @@ views:
           - entity: select.tumble_dryer_01_program
             name: Programi
             icon: mdi:tumble-dryer
-          - entity: select.tumble_dryer_category
-            name: Kategoria
-            icon: mdi:shape-outline
           - entity: select.tumble_dryer_drying_level
             name: Niveli tharjes
             icon: mdi:tumble-dryer-alert

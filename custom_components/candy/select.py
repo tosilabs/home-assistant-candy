@@ -1,7 +1,7 @@
 """Select entities for Candy program selection and wash settings.
 
 Display order in HA device page is determined by the unique_id prefix:
-  s01 → Category
+  s01 → Retired category filter (registry entry preserved)
   s02 → Program
   s03 → Temperature
   s04 → Spin speed
@@ -15,17 +15,18 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect, async_dispatcher_send
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
 
 from .wash_settings import PROGRAM_NAME, select_wash_program
+from .program_options import (WASH_OPTIONS, WASH_LABELS, DRY_OPTIONS, DRY_LABELS,
+                              resolve_wash_name, resolve_dry_name)
 
 from .client.model import TumbleDryerStatus, WashingMachineStatus
 from .const import (
     DATA_KEY_COORDINATOR,
-    DATA_KEY_TD_CATEGORY,
     DATA_KEY_TD_DRY_LEVEL,
-    DATA_KEY_WM_CATEGORY,
     DATA_KEY_WM_RINSE,
     DATA_KEY_WM_SOIL,
     DATA_KEY_WM_SPIN,
@@ -34,9 +35,7 @@ from .const import (
     DEVICE_NAME_TUMBLE_DRYER,
     DEVICE_NAME_WASHING_MACHINE,
     DOMAIN,
-    SIGNAL_TD_CATEGORY_CHANGED,
     SIGNAL_TD_PROGRAM_CHANGED,
-    SIGNAL_WM_CATEGORY_CHANGED,
     SIGNAL_WM_PROGRAM_CHANGED,
     SUGGESTED_AREA_BATHROOM,
     SUGGESTED_AREA_KITCHEN,
@@ -51,6 +50,7 @@ from .const import (
 )
 from .programs import (
     TUMBLE_DRYER_PROGRAMS,
+    TUMBLE_DRYER_PROGRAMS_BY_NAME,
     TUMBLE_DRYER_PROGRAM_DESCRIPTIONS_SQ,
     TUMBLE_DRYER_PROGRAM_META_SQ,
     WASHING_MACHINE_PROGRAMS,
@@ -157,29 +157,22 @@ def _temp_options_for_program(_prog) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Pre-compute program lists grouped by category (static at import time)
+# Program labels and recipe identities are defined in program_options.py.
 # ---------------------------------------------------------------------------
-_WM_PROGRAMS_BY_CATEGORY: dict[str, list[str]] = {}
-for _prog in WASHING_MACHINE_PROGRAMS:
-    _cat = WASHING_MACHINE_PROGRAM_META_SQ.get(_prog.name, {}).get("category", "Tjetër")
-    _WM_PROGRAMS_BY_CATEGORY.setdefault(_cat, []).append(_prog.name)
-_WM_ALL_PROGRAMS: list[str] = sorted(
-    [p.name for p in WASHING_MACHINE_PROGRAMS], key=str.casefold
-)
-
-_TD_PROGRAMS_BY_CATEGORY: dict[str, list[str]] = {}
-for _prog in TUMBLE_DRYER_PROGRAMS:
-    _cat = TUMBLE_DRYER_PROGRAM_META_SQ.get(_prog.name, {}).get("category", "Tjetër")
-    _TD_PROGRAMS_BY_CATEGORY.setdefault(_cat, []).append(_prog.name)
-_TD_ALL_PROGRAMS: list[str] = sorted(
-    [p.name for p in TUMBLE_DRYER_PROGRAMS], key=str.casefold
-)
 
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities):
     config_id = config_entry.entry_id
     coordinator = hass.data[DOMAIN][config_id][DATA_KEY_COORDINATOR]
     entry_data = hass.data[DOMAIN][config_id]
+
+    registry = er.async_get(hass)
+    for unique_id in (UNIQUE_ID_WM_CATEGORY_SELECT.format(config_id), f"{config_id}-s01_td_category"):
+        entity_id = registry.async_get_entity_id("select", DOMAIN, unique_id)
+        if entity_id is not None:
+            old = registry.async_get(entity_id)
+            if old.disabled_by is None:
+                registry.async_update_entity(entity_id, disabled_by=er.RegistryEntryDisabler.INTEGRATION)
 
     entry_data.setdefault(DATA_KEY_WM_TEMP, None)
     entry_data.setdefault(DATA_KEY_WM_SPIN, None)
@@ -189,7 +182,6 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
 
     if isinstance(coordinator.data, WashingMachineStatus):
         async_add_entities([
-            CandyWashCategorySelect(config_id, entry_data, coordinator),
             CandyWashProgramSelect(config_id, entry_data, coordinator),
             CandyWashTemperatureSelect(config_id, entry_data, coordinator),
             CandyWashSpinSelect(config_id, entry_data, coordinator),
@@ -199,7 +191,6 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
         ])
     elif isinstance(coordinator.data, TumbleDryerStatus):
         async_add_entities([
-            CandyTumbleCategorySelect(config_id, entry_data, coordinator),
             CandyTumbleProgramSelect(config_id, entry_data, coordinator),
             CandyTumbleDryLevelSelect(config_id, entry_data, coordinator),
         ])
@@ -234,58 +225,6 @@ class _CandySelectBase(RestoreEntity, SelectEntity):
 
 
 # ===========================================================================
-# WM — s01 Category
-# ===========================================================================
-
-class CandyWashCategorySelect(_CandySelectBase):
-    _attr_translation_key = "wm_category_select"
-    _attr_entity_category = None
-
-    def __init__(self, config_id, entry_data, coordinator):
-        super().__init__(config_id, entry_data, coordinator)
-        self._current = "All"
-
-    @property
-    def unique_id(self): return UNIQUE_ID_WM_CATEGORY_SELECT.format(self.config_id)
-
-    @property
-    def options(self) -> list[str]:
-        cats = {m.get("category", "Tjetër") for m in WASHING_MACHINE_PROGRAM_META_SQ.values()}
-        return ["All", *sorted(cats)]
-
-    @property
-    def current_option(self): return self._current
-
-    @property
-    def icon(self): return "mdi:shape-outline"
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        return DeviceInfo(identifiers={(DOMAIN, self.config_id)},
-                         name=DEVICE_NAME_WASHING_MACHINE, manufacturer="Candy",
-                         suggested_area=SUGGESTED_AREA_KITCHEN)
-
-    async def async_select_option(self, option: str) -> None:
-        if not self.available:
-            raise HomeAssistantError("Controls are unavailable while the machine is offline or processing a command")
-        if option not in self.options:
-            raise HomeAssistantError(f"Invalid option: {option}")
-        self._current = option
-        self._entry_data[DATA_KEY_WM_CATEGORY] = option
-        from homeassistant.helpers.dispatcher import async_dispatcher_send
-        async_dispatcher_send(self.hass, SIGNAL_WM_CATEGORY_CHANGED.format(self.config_id), option)
-        self.async_write_ha_state()
-
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        last = await self.async_get_last_state()
-        if last and last.state in self.options:
-            self._current = last.state
-        self._entry_data[DATA_KEY_WM_CATEGORY] = self._current
-        async_dispatcher_send(self.hass, SIGNAL_WM_CATEGORY_CHANGED.format(self.config_id), self._current)
-
-
-# ===========================================================================
 # WM — s02 Program
 # ===========================================================================
 
@@ -301,13 +240,11 @@ class CandyWashProgramSelect(_CandySelectBase):
 
     @property
     def options(self) -> list[str]:
-        cat = self._entry_data.get(DATA_KEY_WM_CATEGORY, "All")
-        if cat == "All":
-            return _WM_ALL_PROGRAMS
-        return sorted(_WM_PROGRAMS_BY_CATEGORY.get(cat, []), key=str.casefold)
+        return list(WASH_OPTIONS)
 
     @property
-    def current_option(self): return self._current_option
+    def current_option(self):
+        return WASH_LABELS[self._current_option]
 
     @property
     def icon(self): return "mdi:washing-machine"
@@ -322,6 +259,7 @@ class CandyWashProgramSelect(_CandySelectBase):
     def extra_state_attributes(self) -> dict:
         prog = WASHING_MACHINE_PROGRAMS_BY_NAME[self._current_option]
         return {
+            "program_name": self._current_option,
             "program_number": prog.program,
             "selector_position": prog.position,
             "selection_only": True,
@@ -333,47 +271,29 @@ class CandyWashProgramSelect(_CandySelectBase):
             ),
         }
 
+    def _choose_program(self, name):
+        self._current_option = name
+        select_wash_program(self._entry_data, name)
+        async_dispatcher_send(self.hass, SIGNAL_WM_PROGRAM_CHANGED.format(self.config_id),
+                              WASHING_MACHINE_PROGRAMS_BY_NAME[name])
+
     async def async_select_option(self, option: str) -> None:
         if not self.available:
             raise HomeAssistantError("Controls are unavailable while the machine is offline or processing a command")
-        if option not in self.options:
-            raise HomeAssistantError(f"Invalid option: {option}")
-        select_wash_program(self._entry_data, option)
-        self._current_option = option
-        prog = WASHING_MACHINE_PROGRAMS_BY_NAME.get(option)
-        if prog:
-            from homeassistant.helpers.dispatcher import async_dispatcher_send
-            async_dispatcher_send(self.hass, SIGNAL_WM_PROGRAM_CHANGED.format(self.config_id), prog)
+        name = resolve_wash_name(option)
+        if name is None:
+            raise HomeAssistantError(f"Invalid program: {option}")
+        self._choose_program(name)
         self.async_write_ha_state()
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
         last = await self.async_get_last_state()
-        if last and last.state in self.options:
-            self._current_option = last.state
-        elif self.options:
-            self._current_option = self.options[0]
-        select_wash_program(self._entry_data, self._current_option)
-        async_dispatcher_send(self.hass, SIGNAL_WM_PROGRAM_CHANGED.format(self.config_id),
-                              WASHING_MACHINE_PROGRAMS_BY_NAME[self._current_option])
-        self.async_on_remove(
-            async_dispatcher_connect(self.hass, SIGNAL_WM_CATEGORY_CHANGED.format(self.config_id),
-                                     self._on_category_changed)
-        )
+        restored = None
+        if last is not None:
+            restored = resolve_wash_name(last.attributes.get("program_name")) or resolve_wash_name(last.state)
+        self._choose_program(restored or self._current_option)
 
-    @callback
-    def _on_category_changed(self, _cat: str) -> None:
-        if self._current_option not in self.options and self.options:
-            self._current_option = self.options[0]
-            select_wash_program(self._entry_data, self._current_option)
-            async_dispatcher_send(self.hass, SIGNAL_WM_PROGRAM_CHANGED.format(self.config_id),
-                                  WASHING_MACHINE_PROGRAMS_BY_NAME[self._current_option])
-        self.async_write_ha_state()
-
-
-# ===========================================================================
-# WM — s03 Temperature
-# ===========================================================================
 
 class CandyWashTemperatureSelect(_CandySelectBase):
     _attr_translation_key = "wm_temperature"
@@ -697,57 +617,6 @@ class CandyWashRinseSelect(_CandySelectBase):
 
 
 # ===========================================================================
-# TD — s01 Category
-# ===========================================================================
-
-class CandyTumbleCategorySelect(_CandySelectBase):
-    _attr_translation_key = "td_category_select"
-    _attr_entity_category = None
-
-    def __init__(self, config_id, entry_data, coordinator):
-        super().__init__(config_id, entry_data, coordinator)
-        self._current = "All"
-
-    @property
-    def unique_id(self): return f"{self.config_id}-s01_td_category"
-
-    @property
-    def options(self) -> list[str]:
-        cats = {m.get("category", "Tjetër") for m in TUMBLE_DRYER_PROGRAM_META_SQ.values()}
-        return ["All", *sorted(cats)]
-
-    @property
-    def current_option(self): return self._current
-
-    @property
-    def icon(self): return "mdi:shape-outline"
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        return DeviceInfo(identifiers={(DOMAIN, self.config_id)},
-                         name=DEVICE_NAME_TUMBLE_DRYER, manufacturer="Candy",
-                         suggested_area=SUGGESTED_AREA_BATHROOM)
-
-    async def async_select_option(self, option: str) -> None:
-        if not self.available:
-            raise HomeAssistantError("Controls are unavailable while the machine is offline or processing a command")
-        if option not in self.options:
-            raise HomeAssistantError(f"Invalid option: {option}")
-        self._current = option
-        self._entry_data[DATA_KEY_TD_CATEGORY] = option
-        from homeassistant.helpers.dispatcher import async_dispatcher_send
-        async_dispatcher_send(self.hass, SIGNAL_TD_CATEGORY_CHANGED.format(self.config_id), option)
-        self.async_write_ha_state()
-
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        last = await self.async_get_last_state()
-        if last and last.state in self.options:
-            self._current = last.state
-        self._entry_data[DATA_KEY_TD_CATEGORY] = self._current
-
-
-# ===========================================================================
 # TD — s02 Program
 # ===========================================================================
 
@@ -763,13 +632,11 @@ class CandyTumbleProgramSelect(_CandySelectBase):
 
     @property
     def options(self) -> list[str]:
-        cat = self._entry_data.get(DATA_KEY_TD_CATEGORY, "All")
-        if cat == "All":
-            return _TD_ALL_PROGRAMS
-        return sorted(_TD_PROGRAMS_BY_CATEGORY.get(cat, []), key=str.casefold)
+        return list(DRY_OPTIONS)
 
     @property
-    def current_option(self): return self._current_option
+    def current_option(self):
+        return DRY_LABELS[self._current_option]
 
     @property
     def icon(self): return "mdi:tumble-dryer"
@@ -783,6 +650,7 @@ class CandyTumbleProgramSelect(_CandySelectBase):
     @property
     def extra_state_attributes(self) -> dict:
         return {
+            "program_name": self._current_option,
             "category_sq": TUMBLE_DRYER_PROGRAM_META_SQ.get(self._current_option, {}).get("category", "Tjetër"),
             "profile_sq": TUMBLE_DRYER_PROGRAM_META_SQ.get(self._current_option, {}).get("profile", "Profil i panjohur"),
             "description_sq": TUMBLE_DRYER_PROGRAM_DESCRIPTIONS_SQ.get(
@@ -791,41 +659,29 @@ class CandyTumbleProgramSelect(_CandySelectBase):
             ),
         }
 
+    def _choose_program(self, name):
+        self._current_option = name
+        self._entry_data["td_program_name"] = name
+        async_dispatcher_send(self.hass, SIGNAL_TD_PROGRAM_CHANGED.format(self.config_id),
+                              TUMBLE_DRYER_PROGRAMS_BY_NAME[name])
+
     async def async_select_option(self, option: str) -> None:
         if not self.available:
             raise HomeAssistantError("Controls are unavailable while the machine is offline or processing a command")
-        if option not in self.options:
-            raise HomeAssistantError(f"Invalid option: {option}")
-        self._current_option = option
-        from homeassistant.helpers.dispatcher import async_dispatcher_send
-        from .programs import TUMBLE_DRYER_PROGRAMS_BY_NAME
-        prog = TUMBLE_DRYER_PROGRAMS_BY_NAME.get(option)
-        if prog:
-            async_dispatcher_send(self.hass, SIGNAL_TD_PROGRAM_CHANGED.format(self.config_id), prog)
+        name = resolve_dry_name(option)
+        if name is None:
+            raise HomeAssistantError(f"Invalid program: {option}")
+        self._choose_program(name)
         self.async_write_ha_state()
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
         last = await self.async_get_last_state()
-        if last and last.state in self.options:
-            self._current_option = last.state
-        elif self.options:
-            self._current_option = self.options[0]
-        self.async_on_remove(
-            async_dispatcher_connect(self.hass, SIGNAL_TD_CATEGORY_CHANGED.format(self.config_id),
-                                     self._on_category_changed)
-        )
+        restored = None
+        if last is not None:
+            restored = resolve_dry_name(last.attributes.get("program_name")) or resolve_dry_name(last.state)
+        self._choose_program(restored or self._current_option)
 
-    @callback
-    def _on_category_changed(self, _cat: str) -> None:
-        if self._current_option not in self.options and self.options:
-            self._current_option = self.options[0]
-        self.async_write_ha_state()
-
-
-# ===========================================================================
-# TD — s03 Dry level
-# ===========================================================================
 
 class CandyTumbleDryLevelSelect(_CandySelectBase):
     _attr_translation_key = "td_dry_level_select"

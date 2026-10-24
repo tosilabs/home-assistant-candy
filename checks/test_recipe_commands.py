@@ -19,6 +19,7 @@ for name, path in [(PACKAGE, ROOT), (f"{PACKAGE}.client", ROOT / "client")]:
 
 settings = importlib.import_module(f"{PACKAGE}.wash_settings")
 commands = importlib.import_module(f"{PACKAGE}.client.commands")
+options = importlib.import_module(f"{PACKAGE}.program_options")
 catalogue = importlib.import_module(f"{PACKAGE}.programs")
 
 
@@ -27,6 +28,20 @@ def command(data):
 
 
 class RecipeCommandsTest(unittest.TestCase):
+    def test_grouped_labels_preserve_all_recipe_commands(self):
+        for label, name in options.WASH_OPTIONS.items():
+            before, after = {}, {}
+            settings.select_wash_program(before, name)
+            settings.select_wash_program(after, options.resolve_wash_name(label))
+            self.assertEqual(command(before), command(after), label)
+            self.assertEqual(options.resolve_wash_name(name), name)
+        self.assertEqual(len(options.WASH_OPTIONS), len(catalogue.WASHING_MACHINE_PROGRAMS))
+        for label, name in options.DRY_OPTIONS.items():
+            self.assertEqual(options.resolve_dry_name(label), name)
+            self.assertEqual(options.resolve_dry_name(name), name)
+        self.assertIsNone(options.resolve_wash_name("Other category - Trainers"))
+        self.assertIsNone(options.resolve_dry_name(None))
+
     def test_trainers_after_hot_cotton_does_not_keep_previous_options(self):
         data = {}
         settings.select_wash_program(data, "Cottons")
