@@ -82,3 +82,49 @@ async def test_every_catalogue_spin_default_survives_display_roundtrip(hass):
         spin = entity(CandyWashSpinSelect, hass, data)
         spin._on_program_changed(recipe)
         assert data[DATA_KEY_WM_SPIN] == recipe.spin_target, recipe.name
+
+
+async def test_start_sends_selected_recipe_and_refreshes(hass):
+    import json
+    from pathlib import Path
+    from custom_components.candy.button import CandyWashStartButton
+    from custom_components.candy.client.model import WashingMachineStatus
+    fixture = Path(__file__).parent / "components/washing_machine/fixtures/idle.json"
+    status = WashingMachineStatus.from_json(json.loads(fixture.read_text())["statusLavatrice"])
+    coordinator = MagicMock()
+    coordinator.data = status
+    coordinator.last_update_success = True
+    coordinator.async_request_refresh = AsyncMock()
+    client = SimpleNamespace(write_pending=False, send_plaintext=AsyncMock())
+    data = {}
+    select_wash_program(data, "Trainers")
+    start = CandyWashStartButton(coordinator, client, "test", data, hass)
+    with patch("custom_components.candy.button.asyncio.sleep", new_callable=AsyncMock):
+        await start.async_press()
+    payload = client.send_plaintext.await_args.args[0]
+    assert "Sel=93&PrNm=11" in payload
+    assert "TmpTgt=20" in payload
+    assert "SpdTgt=4" in payload
+    assert client.write_pending is False
+    assert data["last_requested_program"] == "Trainers"
+    coordinator.async_request_refresh.assert_awaited_once()
+
+
+async def test_start_rejects_remote_control_disabled(hass):
+    import json
+    from pathlib import Path
+    from custom_components.candy.button import CandyWashStartButton
+    from custom_components.candy.client.model import WashingMachineStatus
+    fixture = Path(__file__).parent / "components/washing_machine/fixtures/idle.json"
+    status = WashingMachineStatus.from_json(json.loads(fixture.read_text())["statusLavatrice"])
+    status.remote_control = False
+    coordinator = MagicMock()
+    coordinator.data = status
+    coordinator.last_update_success = True
+    client = SimpleNamespace(write_pending=False, send_plaintext=AsyncMock())
+    data = {}
+    select_wash_program(data, "Trainers")
+    start = CandyWashStartButton(coordinator, client, "test", data, hass)
+    with pytest.raises(HomeAssistantError):
+        await start.async_press()
+    client.send_plaintext.assert_not_awaited()
