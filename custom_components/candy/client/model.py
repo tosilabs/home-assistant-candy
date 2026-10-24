@@ -114,7 +114,7 @@ class WashingMachineStatus:
             program_code=int(json["PrCode"]) if "PrCode" in json else None,
             temp=_sentinel_to_none(raw_temp),
             spin_speed=None if _sentinel_to_none(raw_spin) is None else _sentinel_to_none(raw_spin) * 100,
-            remaining_minutes=int(json.get("RemTime", 0)),
+            remaining_minutes=int(json.get("RemTime", 0)) // 60,
             remote_control=json.get("WiFiStatus") == "1",
             fill_percent=int(json["FillR"]) if "FillR" in json else None,
             error=_sentinel_to_none(raw_err) if raw_err != 0 else None,

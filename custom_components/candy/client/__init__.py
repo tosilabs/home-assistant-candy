@@ -10,6 +10,8 @@ from aiohttp import ClientSession
 
 from aiolimiter import AsyncLimiter
 
+from .write_response import validate_write_response
+
 from .decryption import decrypt, Encryption, find_key
 from .model import (DishwasherStatus, OvenStatus, TumbleDryerStatus,
                     WashingMachineStatus)
@@ -81,8 +83,7 @@ class CandyClient:
             resp.raise_for_status()
             text = await resp.text()
             _LOGGER.debug("Command response: %s", text)
-            if "BAD REQUEST" in text.upper():
-                raise ValueError("Device rejected the write command")
+            validate_write_response(text)
             return text
 
     async def send_encrypted_data(self, hex_data: str) -> str:
@@ -101,8 +102,7 @@ class CandyClient:
             resp.raise_for_status()
             text = await resp.text()
             _LOGGER.debug("Command response: %s", text)
-            if "BAD REQUEST" in text.upper():
-                raise ValueError("Device rejected the write command")
+            validate_write_response(text)
             return text
 
     async def send_plaintext(self, plaintext: str) -> str:
@@ -115,8 +115,7 @@ class CandyClient:
         async with _LIMITER, self.session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
             resp.raise_for_status()
             text = await resp.text()
-            if "BAD REQUEST" in text.upper():
-                raise ValueError("Device rejected the write command")
+            validate_write_response(text)
             return text
 
     def encrypt_command(self, plaintext: str) -> str:

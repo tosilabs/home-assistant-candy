@@ -54,8 +54,12 @@ views:
         title: 3 · Kontrollo makinën
         show_header_toggle: false
         entities:
+          - entity: sensor.washing_machine_start_result
+            name: A u konfirmua nisja?
           - entity: binary_sensor.washing_machine_remote_control
             name: Makina pranon komanda nga rrjeti
+          - entity: sensor.washing_machine_new_wash_preparation
+            name: Përgatitja e larjes së re
           - type: buttons
             entities:
               - entity: button.washing_machine_start_washing_machine
@@ -71,6 +75,17 @@ views:
           Nëse butonat janë të padisponueshëm, kontrollo gjendjen e makinës dhe
           aktivizo kontrollin nga rrjeti në panelin fizik. Pas komandës, prit disa
           sekonda për përditësimin e gjendjes.
+      - type: button
+        entity: button.washing_machine_cancel_and_prepare_new_wash
+        name: Anulo dhe përgatit larje të re
+        icon: mdi:restart
+        tap_action:
+          action: call-service
+          service: button.press
+          target:
+            entity_id: button.washing_machine_cancel_and_prepare_new_wash
+          confirmation:
+            text: Ky veprim anulon programin aktual. Të vazhdohet?
       - type: entities
         title: Gjendja reale e makinës
         show_header_toggle: false

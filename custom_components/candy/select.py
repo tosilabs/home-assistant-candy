@@ -266,6 +266,8 @@ class CandyWashCategorySelect(_CandySelectBase):
                          suggested_area=SUGGESTED_AREA_KITCHEN)
 
     async def async_select_option(self, option: str) -> None:
+        if not self.available:
+            raise HomeAssistantError("Controls are unavailable while the machine is offline or processing a command")
         if option not in self.options:
             raise HomeAssistantError(f"Invalid option: {option}")
         self._current = option
@@ -332,6 +334,8 @@ class CandyWashProgramSelect(_CandySelectBase):
         }
 
     async def async_select_option(self, option: str) -> None:
+        if not self.available:
+            raise HomeAssistantError("Controls are unavailable while the machine is offline or processing a command")
         if option not in self.options:
             raise HomeAssistantError(f"Invalid option: {option}")
         select_wash_program(self._entry_data, option)
@@ -402,6 +406,8 @@ class CandyWashTemperatureSelect(_CandySelectBase):
                          suggested_area=SUGGESTED_AREA_KITCHEN)
 
     async def async_select_option(self, option: str) -> None:
+        if not self.available:
+            raise HomeAssistantError("Controls are unavailable while the machine is offline or processing a command")
         if option not in self.options:
             raise HomeAssistantError(f"Invalid option: {option}")
         if option not in _TEMP_FROM_LABEL:
@@ -477,6 +483,8 @@ class CandyWashSpinSelect(_CandySelectBase):
                          suggested_area=SUGGESTED_AREA_KITCHEN)
 
     async def async_select_option(self, option: str) -> None:
+        if not self.available:
+            raise HomeAssistantError("Controls are unavailable while the machine is offline or processing a command")
         if option not in self.options:
             raise HomeAssistantError(f"Invalid option: {option}")
         if option not in _SPIN_FROM_LABEL:
@@ -545,6 +553,8 @@ class CandyWashSoilLevelSelect(_CandySelectBase):
                          suggested_area=SUGGESTED_AREA_KITCHEN)
 
     async def async_select_option(self, option: str) -> None:
+        if not self.available:
+            raise HomeAssistantError("Controls are unavailable while the machine is offline or processing a command")
         if option not in self.options:
             raise HomeAssistantError(f"Invalid option: {option}")
         if option not in _SOIL_TO_VALUE:
@@ -601,6 +611,8 @@ class CandyWashSteamSelect(_CandySelectBase):
                          suggested_area=SUGGESTED_AREA_KITCHEN)
 
     async def async_select_option(self, option: str) -> None:
+        if not self.available:
+            raise HomeAssistantError("Controls are unavailable while the machine is offline or processing a command")
         if option not in self.options:
             raise HomeAssistantError(f"Invalid option: {option}")
         if option not in _STEAM_TO_VALUE:
@@ -657,6 +669,8 @@ class CandyWashRinseSelect(_CandySelectBase):
                          suggested_area=SUGGESTED_AREA_KITCHEN)
 
     async def async_select_option(self, option: str) -> None:
+        if not self.available:
+            raise HomeAssistantError("Controls are unavailable while the machine is offline or processing a command")
         if option not in self.options:
             raise HomeAssistantError(f"Invalid option: {option}")
         if option not in _RINSE_TO_VALUE:
@@ -715,6 +729,8 @@ class CandyTumbleCategorySelect(_CandySelectBase):
                          suggested_area=SUGGESTED_AREA_BATHROOM)
 
     async def async_select_option(self, option: str) -> None:
+        if not self.available:
+            raise HomeAssistantError("Controls are unavailable while the machine is offline or processing a command")
         if option not in self.options:
             raise HomeAssistantError(f"Invalid option: {option}")
         self._current = option
@@ -776,6 +792,8 @@ class CandyTumbleProgramSelect(_CandySelectBase):
         }
 
     async def async_select_option(self, option: str) -> None:
+        if not self.available:
+            raise HomeAssistantError("Controls are unavailable while the machine is offline or processing a command")
         if option not in self.options:
             raise HomeAssistantError(f"Invalid option: {option}")
         self._current_option = option
@@ -836,6 +854,8 @@ class CandyTumbleDryLevelSelect(_CandySelectBase):
                          suggested_area=SUGGESTED_AREA_BATHROOM)
 
     async def async_select_option(self, option: str) -> None:
+        if not self.available:
+            raise HomeAssistantError("Controls are unavailable while the machine is offline or processing a command")
         if option not in self.options:
             raise HomeAssistantError(f"Invalid option: {option}")
         if option not in _TD_DRY_LEVEL_TO_VALUE:

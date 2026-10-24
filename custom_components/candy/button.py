@@ -1,26 +1,37 @@
 """Button entities for Candy machines: Start / Pause / Resume / Stop."""
 from abc import abstractmethod
 import asyncio
+from datetime import datetime, timezone
+import logging
 
 from homeassistant.components.button import ButtonEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.update_coordinator import (CoordinatorEntity,
                                                       DataUpdateCoordinator)
 
-from .wash_settings import PROGRAM_NAME, wash_command_parameters
+from .start_status import start_outcome, status_snapshot
+from .wash_settings import PROGRAM_NAME, wash_command_parameters, select_wash_program
 from .client import CandyClient
 from .client.commands import (tumble_dryer_pause, tumble_dryer_resume,
                               tumble_dryer_start, tumble_dryer_stop,
                               washing_machine_pause, washing_machine_resume,
                               washing_machine_start, washing_machine_stop)
-from .client.model import MachineState, TumbleDryerStatus, WashingMachineStatus
+from .client.model import MachineState, TumbleDryerStatus, WashingMachineStatus, WashProgramState
 from .const import *
 from .programs import (TUMBLE_DRYER_PROGRAMS_BY_NAME,
                        WASHING_MACHINE_PROGRAMS_BY_NAME)
 from .select import UNIQUE_ID_TD_PROGRAM_SELECT, UNIQUE_ID_WM_PROGRAM_SELECT
+
+_LOGGER = logging.getLogger(__name__)
+
+
+class StartNotConfirmed(HomeAssistantError):
+    """A Start request did not produce a fresh running/scheduled status."""
+
 
 _WM_IDLE = (MachineState.IDLE, MachineState.FINISHED1, MachineState.FINISHED2)
 _WM_RUNNING = (MachineState.RUNNING,)
@@ -40,6 +51,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
     if isinstance(coordinator.data, WashingMachineStatus):
         async_add_entities([
             CandyWashStartButton(coordinator, client, config_id, entry_data, hass),
+            CandyWashPrepareButton(coordinator, client, config_id, entry_data),
             CandyWashPauseButton(coordinator, client, config_id),
             CandyWashResumeButton(coordinator, client, config_id),
             CandyWashStopButton(coordinator, client, config_id, entry_data),
@@ -72,21 +84,38 @@ class CandyBaseButton(CoordinatorEntity, ButtonEntity):
             and not self._client.write_pending
         )
 
-    async def _send_and_refresh(self, plaintext: str) -> None:
+    async def _send_and_refresh(self, plaintext: str, *, verify_start=False) -> str | None:
         if not self.available:
             raise HomeAssistantError("Machine is busy, offline, or remote control is disabled")
         self._client.write_pending = True
         self.coordinator.async_update_listeners()
         try:
             await _send(self._client, plaintext)
+            # A successful HTTP response can still be an ignored Start request.
+            # Poll status only: never resend Start automatically.
+            await asyncio.sleep(5)
+            await self.coordinator.async_request_refresh()
+            if verify_start:
+                for attempt in range(3):
+                    outcome = start_outcome(
+                        self.coordinator.data, self.coordinator.last_update_success
+                    )
+                    if outcome in ("running_recipe_unverified", "scheduled_recipe_unverified"):
+                        return outcome
+                    if outcome == "device_error":
+                        raise StartNotConfirmed("The machine reports an error after Start. Check its panel.")
+                    if attempt < 2:
+                        await asyncio.sleep(3)
+                        await self.coordinator.async_request_refresh()
+                raise StartNotConfirmed(
+                    "Start was sent, but the machine did not confirm a running or scheduled cycle. "
+                    "Check Remote control and the physical panel. Download Candy diagnostics "
+                    "from the integration menu to inspect the requested command and reported status."
+                )
+            return None
         finally:
-            try:
-                # As in the reference integration, let firmware settle before polling.
-                await asyncio.sleep(5)
-                await self.coordinator.async_request_refresh()
-            finally:
-                self._client.write_pending = False
-                self.coordinator.async_update_listeners()
+            self._client.write_pending = False
+            self.coordinator.async_update_listeners()
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -132,18 +161,54 @@ class CandyWashStartButton(_WashBase):
 
     @property
     def available(self) -> bool:
-        return super().available and self._wm_state() in _WM_IDLE
+        return (
+            super().available and self._wm_state() in _WM_IDLE
+            and self._entry_data.get("last_prepare", {}).get("result")
+            not in ("preparing", "not_confirmed", "failed")
+        )
 
     async def async_press(self) -> None:
         program_name = self._entry_data.get(PROGRAM_NAME)
         prog = WASHING_MACHINE_PROGRAMS_BY_NAME.get(program_name)
         if prog is None:
             raise HomeAssistantError("Select a wash program before starting")
-        plaintext = washing_machine_start(**wash_command_parameters(self._entry_data))
-        await self._send_and_refresh(plaintext)
-        self._entry_data[DATA_KEY_LAST_PROGRAM] = prog.effective_stop_program
-        self._entry_data["last_requested_program"] = prog.name
+        if not self.available:
+            raise HomeAssistantError("Start unavailable: enable remote control and check the machine state")
+        params = wash_command_parameters(self._entry_data)
+        plaintext = washing_machine_start(**params)
+        diagnostic = {
+            "requested_at": datetime.now(timezone.utc).isoformat(),
+            "program_name": prog.name,
+            "command_parameters": params,
+            "plaintext_command": plaintext,
+            "before": status_snapshot(self.coordinator.data),
+            "result": "sending",
+            "recipe_confirmed": False,
+        }
+        self._entry_data["last_start"] = diagnostic
         self.coordinator.async_update_listeners()
+        try:
+            diagnostic["result"] = await self._send_and_refresh(plaintext, verify_start=True)
+        except StartNotConfirmed:
+            diagnostic["result"] = start_outcome(
+                self.coordinator.data, self.coordinator.last_update_success
+            )
+            _LOGGER.warning(
+                "Candy Start not confirmed for %s: requested %s C / %s rpm; reported %s",
+                prog.name, params["temp_target"],
+                params["spin_target"] * 100 if params["spin_target"] is not None else None,
+                status_snapshot(self.coordinator.data),
+            )
+            raise
+        except Exception:
+            diagnostic["result"] = "send_failed"
+            raise
+        else:
+            self._entry_data[DATA_KEY_LAST_PROGRAM] = prog.effective_stop_program
+            self._entry_data["last_requested_program"] = prog.name
+        finally:
+            diagnostic["after"] = status_snapshot(self.coordinator.data)
+            self.coordinator.async_update_listeners()
 
 
 class CandyWashPauseButton(_WashBase):
@@ -339,3 +404,81 @@ class CandyTumbleStopButton(_TumbleBase):
                 "tumble_dryer_stop service with explicit program."
             )
         await self._send_and_refresh(tumble_dryer_stop(program))
+
+
+class CandyWashPrepareButton(_WashBase):
+    """Explicitly cancel a previous cycle; never start a new one automatically."""
+    _attr_translation_key = "wash_prepare_button"
+    _attr_icon = "mdi:restart"
+
+    def __init__(self, coordinator, client, config_id, entry_data):
+        super().__init__(coordinator, client, config_id)
+        self._entry_data = entry_data
+
+    @property
+    def unique_id(self):
+        return f"{self.config_id}-wash_prepare_button"
+
+    @property
+    def available(self):
+        return (
+            super().available
+            and self._wm_state() in (*_WM_IDLE, *_WM_STOPPABLE)
+            and self._entry_data.get(PROGRAM_NAME) in WASHING_MACHINE_PROGRAMS_BY_NAME
+        )
+
+    async def async_press(self):
+        if not self.available:
+            raise HomeAssistantError("Enable remote control and select a program before preparing a new wash")
+        program_name = self._entry_data[PROGRAM_NAME]
+        record = {"requested_at": datetime.now(timezone.utc).isoformat(),
+                  "selected_program": program_name, "result": "preparing",
+                  "stop_sent": False}
+        self._entry_data["last_prepare"] = record
+        self._client.write_pending = True
+        self.coordinator.async_update_listeners()
+        try:
+            # Resolve the current device program from a fresh read, never from
+            # the next selected recipe or a remembered previous Start.
+            await self.coordinator.async_request_refresh()
+            status = self.coordinator.data
+            if not self.coordinator.last_update_success or not isinstance(status, WashingMachineStatus):
+                raise HomeAssistantError("Cannot prepare: fresh machine status is unavailable")
+            record["before"] = status_snapshot(status)
+            if not status.remote_control or status.machine_state not in (*_WM_IDLE, *_WM_STOPPABLE):
+                raise HomeAssistantError("Cannot prepare: the machine does not currently allow this operation")
+            current_program = status.program
+            if current_program is None or current_program <= 0:
+                if status.machine_state != MachineState.IDLE or status.program_state != WashProgramState.STOPPED:
+                    raise HomeAssistantError("Cannot cancel: the machine's current program number is unknown")
+                # Already Ready and no current program: only reset local recipe settings.
+            else:
+                command = washing_machine_stop(current_program)
+                record["stop_command"] = command
+                await _send(self._client, command)
+                record["stop_sent"] = True
+                for attempt in range(3):
+                    await asyncio.sleep(5 if attempt == 0 else 3)
+                    await self.coordinator.async_request_refresh()
+                    status = self.coordinator.data
+                    if (self.coordinator.last_update_success
+                            and isinstance(status, WashingMachineStatus)
+                            and status.machine_state == MachineState.IDLE
+                            and status.program_state == WashProgramState.STOPPED):
+                        break
+                else:
+                    record["result"] = "not_confirmed"
+                    raise HomeAssistantError("Cancellation was not confirmed. No new wash was started; check the machine panel")
+            select_wash_program(self._entry_data, program_name)
+            async_dispatcher_send(self.hass, SIGNAL_WM_PROGRAM_CHANGED.format(self.config_id),
+                                  WASHING_MACHINE_PROGRAMS_BY_NAME[program_name])
+            self._entry_data[DATA_KEY_LAST_PROGRAM] = None
+            record["result"] = "ready"
+        except Exception:
+            if record["result"] == "preparing":
+                record["result"] = "failed"
+            raise
+        finally:
+            record["after"] = status_snapshot(self.coordinator.data)
+            self._client.write_pending = False
+            self.coordinator.async_update_listeners()

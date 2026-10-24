@@ -180,9 +180,9 @@ async def test_send_encrypted_data_uses_data_param(hass, aioclient_mock):
     assert dict(url.query) == {"encrypted": "1", "data": hex_blob}
 
 
-async def test_encrypt_decrypt_roundtrip(hass):
+def test_encrypt_decrypt_roundtrip():
     client = CandyClient(
-        async_get_clientsession(hass), device_ip=TEST_IP, encryption_key="abcdef0123456789", use_encryption=True
+        None, device_ip=TEST_IP, encryption_key="abcdef0123456789", use_encryption=True
     )
     plaintext = "WashProgr=13&Temp=40&WiFiStatus=1"
     hex_blob = client.encrypt_command(plaintext)
@@ -190,9 +190,9 @@ async def test_encrypt_decrypt_roundtrip(hass):
     assert client.decrypt_data(hex_blob) == plaintext
 
 
-async def test_decrypt_data_no_key_raises(hass):
+def test_decrypt_data_no_key_raises():
     client = CandyClient(
-        async_get_clientsession(hass), device_ip=TEST_IP, encryption_key="", use_encryption=True
+        None, device_ip=TEST_IP, encryption_key="", use_encryption=True
     )
     with pytest.raises(ValueError):
         client.decrypt_data("3F15081006")

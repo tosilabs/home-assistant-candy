@@ -31,3 +31,12 @@ async def init_integration(hass: HomeAssistant, aioclient_mock, status_response:
     entry.add_to_hass(hass)
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
+
+
+def registered_entity_id(hass, platform, suffix):
+    """Resolve stable integration identity instead of relying on generated names."""
+    from homeassistant.helpers import entity_registry as er
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    entity_id = er.async_get(hass).async_get_entity_id(platform, DOMAIN, f"{entry.entry_id}-{suffix}")
+    assert entity_id is not None, (platform, suffix)
+    return entity_id

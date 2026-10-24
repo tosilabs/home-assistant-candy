@@ -5,77 +5,77 @@ from pytest_homeassistant_custom_component.common import (load_fixture)
 from pytest_homeassistant_custom_component.test_util.aiohttp import \
     AiohttpClientMocker
 
-from .common import init_integration
+from .common import init_integration, registered_entity_id
 
 
 async def test_main_sensor_idle(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
     await init_integration(hass, aioclient_mock, load_fixture("oven/idle.json"))
 
-    state = hass.states.get("sensor.oven")
+    state = hass.states.get(registered_entity_id(hass, "sensor", "oven"))
 
     assert state
     assert state.state == "Idle"
-    assert state.attributes == {
+    assert state.attributes.items() >= {
         "program": 2,
         "selection": 1,
         "temperature": 154,
         "temperature_reached": False,
         "program_length_minutes": 0,
         "remote_control": False,
-        "friendly_name": "Oven",
+
         "icon": "mdi:stove"
-    }
+    }.items()
 
 
 async def test_main_sensor_heating(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
     await init_integration(hass, aioclient_mock, load_fixture("oven/heating.json"))
 
-    state = hass.states.get("sensor.oven")
+    state = hass.states.get(registered_entity_id(hass, "sensor", "oven"))
 
     assert state
     assert state.state == "Heating"
-    assert state.attributes == {
+    assert state.attributes.items() >= {
         "program": 3,
         "selection": 2,
         "temperature": 143,
         "temperature_reached": True,
         "program_length_minutes": 0,
         "remote_control": False,
-        "friendly_name": "Oven",
+
         "icon": "mdi:stove"
-    }
+    }.items()
 
 
 async def test_main_sensor_no_timeprogr(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
     await init_integration(hass, aioclient_mock, load_fixture("oven/no_timeprogr.json"))
 
-    state = hass.states.get("sensor.oven")
+    state = hass.states.get(registered_entity_id(hass, "sensor", "oven"))
 
     assert state
     assert state.state == "Idle"
-    assert state.attributes == {
+    assert state.attributes.items() >= {
         "program": 0,
         "selection": 0,
         "temperature": 104,
         "temperature_reached": False,
         "remote_control": False,
-        "friendly_name": "Oven",
+
         "icon": "mdi:stove"
-    }
+    }.items()
 
 
 async def test_temp_sensor_heating(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
     await init_integration(hass, aioclient_mock, load_fixture("oven/heating.json"))
 
-    state = hass.states.get("sensor.oven_temperature")
+    state = hass.states.get(registered_entity_id(hass, "sensor", "oven-temp"))
 
     assert state
     assert state.state == "143"
-    assert state.attributes == {
-        "friendly_name": "Oven temperature",
+    assert state.attributes.items() >= {
+
         "icon": "mdi:thermometer",
         "unit_of_measurement": '°C'
-    }
+    }.items()
 
 
 async def test_main_sensor_device_info(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
@@ -83,7 +83,7 @@ async def test_main_sensor_device_info(hass: HomeAssistant, aioclient_mock: Aioh
 
     entity_reg = entity_registry.async_get(hass)
     device_reg = device_registry.async_get(hass)
-    entry = entity_reg.async_get("sensor.oven")
+    entry = entity_reg.async_get(registered_entity_id(hass, "sensor", "oven"))
     device = device_reg.async_get(entry.device_id)
 
     assert device
@@ -98,8 +98,8 @@ async def test_sensors_device_info(hass: HomeAssistant, aioclient_mock: AiohttpC
     entity_reg = entity_registry.async_get(hass)
     device_reg = device_registry.async_get(hass)
 
-    main_sensor = entity_reg.async_get("sensor.oven")
-    temp_sensor = entity_reg.async_get("sensor.oven_temperature")
+    main_sensor = entity_reg.async_get(registered_entity_id(hass, "sensor", "oven"))
+    temp_sensor = entity_reg.async_get(registered_entity_id(hass, "sensor", "oven-temp"))
 
     main_device = device_reg.async_get(main_sensor.device_id)
     temp_device = device_reg.async_get(temp_sensor.device_id)

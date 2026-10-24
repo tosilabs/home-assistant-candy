@@ -79,6 +79,29 @@
       },
       "td_delay_start": {
         "name": "Vonesë fillimi"
+      },
+      "wm_start_result": {
+        "name": "Rezultati i nisjes",
+        "state": {
+          "not_requested": "Nuk është kërkuar nisja",
+          "sending": "Po dërgohet komanda",
+          "send_failed": "Dërgimi dështoi",
+          "not_confirmed": "Nisja nuk u konfirmua",
+          "status_unavailable": "Gjendja nuk mund të lexohet",
+          "device_error": "Makina raporton gabim",
+          "running_recipe_unverified": "Cikli po punon; receta e paverifikuar",
+          "scheduled_recipe_unverified": "Cikli është planifikuar; receta e paverifikuar"
+        }
+      },
+      "wm_prepare_result": {
+        "name": "Përgatitja e larjes së re",
+        "state": {
+          "not_requested": "Nuk është kërkuar",
+          "preparing": "Duke anuluar programin",
+          "ready": "Gati për nisje të re",
+          "not_confirmed": "Anulimi nuk u konfirmua",
+          "failed": "Përgatitja dështoi"
+        }
       }
     },
     "binary_sensor": {
@@ -151,6 +174,9 @@
       },
       "tumble_stop_button": {
         "name": "Ndalo"
+      },
+      "wash_prepare_button": {
+        "name": "Anulo dhe përgatit larje të re"
       }
     },
     "number": {

@@ -37,7 +37,8 @@ jobs:
             --cov-report term-missing \
             --cov-report xml \
             --cov=custom_components.candy
-      - uses: codecov/codecov-action@v3
+      - uses: actions/upload-artifact@v4
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+          name: coverage-report
+          path: coverage.xml
       - uses: home-assistant/actions/hassfest@master
