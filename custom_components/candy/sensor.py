@@ -51,6 +51,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
                 CandyWashCycleStatusSensor(coordinator, config_id),
                 CandyWashRemainingTimeSensor(coordinator, config_id),
                 CandyWashProgramSensor(coordinator, config_id),
+                CandyWashStartResultSensor(coordinator, config_id),
                 CandyWashTemperatureSensor(coordinator, config_id),
                 CandyWashSpinSensor(coordinator, config_id),
                 CandyWashSoilLevelSensor(coordinator, config_id),
@@ -667,3 +668,34 @@ class CandyTumbleErrorSensor(_TumbleSensorBase):
     @property
     def state(self) -> StateType:
         return self.coordinator.data.error
+
+
+class CandyWashStartResultSensor(_WashSensorBase):
+    """Distinguish preparing a recipe, sending Start and observed cycle activity."""
+    _attr_has_entity_name = True
+    _attr_translation_key = "wm_start_result"
+    _attr_icon = "mdi:check-network-outline"
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = [
+        "not_requested", "sending", "send_failed", "not_confirmed",
+        "status_unavailable", "device_error", "running_recipe_unverified",
+        "scheduled_recipe_unverified",
+    ]
+
+    @property
+    def unique_id(self):
+        return f"{self.config_id}-wm_start_result"
+
+    @property
+    def native_value(self):
+        data = self.hass.data[DOMAIN][self.config_id]
+        return data.get("last_start", {}).get("result", "not_requested")
+
+    @property
+    def extra_state_attributes(self):
+        data = self.hass.data[DOMAIN][self.config_id].get("last_start", {})
+        return {
+            "requested_program": data.get("program_name"),
+            "requested_at": data.get("requested_at"),
+            "recipe_confirmed": False,
+        }

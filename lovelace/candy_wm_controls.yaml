@@ -54,6 +54,8 @@ views:
         title: 3 · Kontrollo makinën
         show_header_toggle: false
         entities:
+          - entity: sensor.washing_machine_start_result
+            name: A u konfirmua nisja?
           - entity: binary_sensor.washing_machine_remote_control
             name: Makina pranon komanda nga rrjeti
           - type: buttons

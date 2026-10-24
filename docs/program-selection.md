@@ -59,3 +59,27 @@ Këto teste nuk provojnë sjelljen e firmware-it fizik.
 Duhet provë në pajisje me një ngarkesë të përshtatshme dhe krahasim me Simply-Fi.
 Nëse ekzekutohet ende cikël tjetër, duhet verifikuar nëse `Sel` në katalog është
 vlerë e pranuar nga modeli. Prania e saj në tabelë nuk e provon këtë.
+
+## Kur Start nuk e nis makinën
+
+Një përgjigje HTTP 200 nga pajisja nuk provon që programi është pranuar.
+Butoni Start tani pret rifreskimin e gjendjes dhe deri në dy lexime shtesë.
+Komanda Start dërgohet vetëm një herë; leximet nuk provojnë programe të tjera.
+Nëse makina mbetet Ready, shfaqet gabimi "Start was sent, but the machine did
+not confirm..." dhe sensori i ri Rezultati i nisjes raporton "Nisja nuk u
+konfirmua". Nëse makina nis një cikël, kjo shënohet si aktivitet i konfirmuar,
+por identiteti i recetës mbetet i paverifikuar.
+
+Për rastin Trainers 20°C / 400 rpm kundrejt panelit Ready 40°C / 1000 rpm,
+shkarko diagnostikën te Settings > Devices & Services > Candy > menuja e
+integrimit > Download diagnostics. Ajo përmban programin e zgjedhur, komandën
+e nisjes dhe gjendjen para/pas, pa kredenciale, IP ose çelës enkriptimi.
+Kjo mjafton për të vazhduar analizën pa video. Diagnostika nuk ruhet përtej
+restart-it dhe nuk mund të rikrijojë kërkesa të kryera para këtij versioni.
+
+Historiku i repository-t tregon se programet e gatshme u importuan nga katalogu
+duke përdorur `parent` si `PrNm`, dhe pozicioni u shtua më vonë si `Sel`.
+Repository auanasgheps përdor të dhënat e modelit për lidhjen me programin bazë
+dhe një `RecipeId` për programet e gatshme. Këto formate nuk mund të trajtohen
+si të barabarta vetëm nga emri Trainers ose nga fotografia e panelit.
+Ky rishikim nuk ndryshon numrat e programeve ose formatin e komandës me hamendje.

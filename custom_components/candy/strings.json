@@ -79,6 +79,19 @@
     "sensor": {
       "wm_program_sensor": {
         "name": "Reported program"
+      },
+      "wm_start_result": {
+        "name": "Start result",
+        "state": {
+          "not_requested": "Start not requested",
+          "sending": "Sending Start",
+          "send_failed": "Send failed",
+          "not_confirmed": "Start not confirmed",
+          "status_unavailable": "Status unavailable",
+          "device_error": "Device reports an error",
+          "running_recipe_unverified": "Cycle running; recipe unverified",
+          "scheduled_recipe_unverified": "Cycle scheduled; recipe unverified"
+        }
       }
     },
     "binary_sensor": {
