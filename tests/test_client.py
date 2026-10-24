@@ -190,9 +190,9 @@ def test_encrypt_decrypt_roundtrip():
     assert client.decrypt_data(hex_blob) == plaintext
 
 
-async def test_decrypt_data_no_key_raises(hass):
+def test_decrypt_data_no_key_raises():
     client = CandyClient(
-        async_get_clientsession(hass), device_ip=TEST_IP, encryption_key="", use_encryption=True
+        None, device_ip=TEST_IP, encryption_key="", use_encryption=True
     )
     with pytest.raises(ValueError):
         client.decrypt_data("3F15081006")

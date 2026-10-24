@@ -103,3 +103,16 @@ async def test_prepare_preserves_lock_and_releases_after_transport_failure(hass)
         await button.async_press()
     assert client.write_pending is False
     assert data["last_prepare"]["result"] == "failed"
+
+
+async def test_automation_cannot_change_recipe_during_write(hass):
+    from custom_components.candy.select import CandyWashProgramSelect
+    button, coordinator, client, data = controls(hass)
+    data["client"] = client
+    selector = CandyWashProgramSelect("test", data, coordinator)
+    selector.hass = hass
+    selector.async_write_ha_state = MagicMock()
+    client.write_pending = True
+    with pytest.raises(HomeAssistantError, match="processing a command"):
+        await selector.async_select_option("Cottons")
+    assert data["wm_program_name"] == "Trainers"
