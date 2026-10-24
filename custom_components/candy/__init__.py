@@ -84,7 +84,7 @@ WM_START_SCHEMA = _target_required({
     vol.Optional(ATTR_SPIN_TARGET): vol.All(int, vol.Range(min=0)),
     vol.Optional(ATTR_SPIN_DEFAULT): vol.All(int, vol.Range(min=0)),
     vol.Optional(ATTR_SOIL_LEVEL): vol.All(int, vol.Range(min=0)),
-    vol.Optional(ATTR_STEAM, default=0): vol.All(int, vol.Range(min=0, max=1)),
+    vol.Optional(ATTR_STEAM, default=0): vol.All(int, vol.Range(min=0, max=2)),
 })
 
 WM_STOP_SCHEMA = _target_required({
@@ -261,8 +261,7 @@ def _get_client(hass: HomeAssistant, entry_id: str) -> CandyClient:
 
 async def _send_plaintext(hass: HomeAssistant, entry_id: str, plaintext: str) -> None:
     client = _get_client(hass, entry_id)
-    hex_blob = client.encrypt_command(plaintext)
-    await client.send_encrypted_data(hex_blob)
+    await client.send_plaintext(plaintext)
 
 
 def _async_register_services(hass: HomeAssistant) -> None:
@@ -279,8 +278,7 @@ def _async_register_services(hass: HomeAssistant) -> None:
 
     async def handle_send_plaintext_command(call: ServiceCall) -> None:
         client = _get_client(hass, _resolve_entry_id(hass, call))
-        hex_blob = client.encrypt_command(call.data[ATTR_PLAINTEXT])
-        await client.send_encrypted_data(hex_blob)
+        await client.send_plaintext(call.data[ATTR_PLAINTEXT])
 
     async def handle_decrypt_data(call: ServiceCall) -> None:
         client = _get_client(hass, _resolve_entry_id(hass, call))
@@ -295,6 +293,7 @@ def _async_register_services(hass: HomeAssistant) -> None:
             spin_target=call.data.get(ATTR_SPIN_TARGET),
             spin_default=call.data.get(ATTR_SPIN_DEFAULT),
             steam=call.data.get(ATTR_STEAM, 0),
+            soil_level=call.data.get(ATTR_SOIL_LEVEL),
         )
         entry_id = _resolve_entry_id(hass, call)
         _get_entry_data(hass, entry_id)[DATA_KEY_LAST_PROGRAM] = program

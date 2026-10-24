@@ -1,5 +1,6 @@
 """Button entities for Candy machines: Start / Pause / Resume / Stop."""
 from abc import abstractmethod
+import asyncio
 
 from homeassistant.components.button import ButtonEntity
 from homeassistant.config_entries import ConfigEntry
@@ -9,6 +10,7 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import (CoordinatorEntity,
                                                       DataUpdateCoordinator)
 
+from .wash_settings import PROGRAM_NAME, wash_command_parameters
 from .client import CandyClient
 from .client.commands import (tumble_dryer_pause, tumble_dryer_resume,
                               tumble_dryer_start, tumble_dryer_stop,
@@ -52,15 +54,39 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
 
 
 async def _send(client: CandyClient, plaintext: str) -> None:
-    hex_blob = client.encrypt_command(plaintext)
-    await client.send_encrypted_data(hex_blob)
+    await client.send_plaintext(plaintext)
 
 
 class CandyBaseButton(CoordinatorEntity, ButtonEntity):
+    _attr_has_entity_name = True
     def __init__(self, coordinator: DataUpdateCoordinator, client: CandyClient, config_id: str):
         super().__init__(coordinator)
         self._client = client
         self.config_id = config_id
+
+    @property
+    def available(self) -> bool:
+        return (
+            super().available
+            and bool(getattr(self.coordinator.data, "remote_control", False))
+            and not self._client.write_pending
+        )
+
+    async def _send_and_refresh(self, plaintext: str) -> None:
+        if not self.available:
+            raise HomeAssistantError("Machine is busy, offline, or remote control is disabled")
+        self._client.write_pending = True
+        self.coordinator.async_update_listeners()
+        try:
+            await _send(self._client, plaintext)
+        finally:
+            try:
+                # As in the reference integration, let firmware settle before polling.
+                await asyncio.sleep(5)
+                await self.coordinator.async_request_refresh()
+            finally:
+                self._client.write_pending = False
+                self.coordinator.async_update_listeners()
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -91,13 +117,11 @@ class _WashBase(CandyBaseButton):
 
 
 class CandyWashStartButton(_WashBase):
+    _attr_translation_key = "wash_start_button"
     def __init__(self, coordinator, client, config_id, entry_data, hass):
         super().__init__(coordinator, client, config_id)
         self._entry_data = entry_data
         self._hass = hass
-
-    @property
-    def name(self) -> str: return "Start washing machine"
 
     @property
     def unique_id(self) -> str:
@@ -111,60 +135,19 @@ class CandyWashStartButton(_WashBase):
         return super().available and self._wm_state() in _WM_IDLE
 
     async def async_press(self) -> None:
-        from homeassistant.helpers import entity_registry as er
-        select_uid = UNIQUE_ID_WM_PROGRAM_SELECT.format(self.config_id)
-        registry = er.async_get(self._hass)
-        entry = registry.async_get_entity_id("select", DOMAIN, select_uid)
-        if entry is None:
-            raise HomeAssistantError("Program select entity not found")
-        state = self._hass.states.get(entry)
-        if state is None:
-            raise HomeAssistantError("Program select entity has no state")
-        program_name = state.state
+        program_name = self._entry_data.get(PROGRAM_NAME)
         prog = WASHING_MACHINE_PROGRAMS_BY_NAME.get(program_name)
         if prog is None:
-            raise HomeAssistantError(f"Unknown program: {program_name}")
-
-        # --- User overrides from select entities ---
-        # Temperature: entry_data stores raw °C integer
-        temp = self._entry_data.get(DATA_KEY_WM_TEMP)
-        if temp is None:
-            temp = prog.temp
-
-        # Spin: entry_data stores encoded value (rpm // 100)
-        spin_enc = self._entry_data.get(DATA_KEY_WM_SPIN)
-        if spin_enc is None:
-            spin_enc = prog.spin_target
-
-        # Steam
-        steam = self._entry_data.get(DATA_KEY_WM_STEAM)
-        if steam is None:
-            steam = prog.steam
-
-        # Soil level: entry_data stores raw soil value (1/2/3 or None)
-        soil = self._entry_data.get(DATA_KEY_WM_SOIL)
-        if soil is None:
-            soil = getattr(prog, "soil_level", None)
-
-        plaintext = washing_machine_start(
-            program=prog.program,
-            temp_target=temp,
-            temp_default=prog.temp,
-            spin_target=spin_enc,
-            spin_default=prog.spin_default,
-            steam=steam,
-            opt_mask=prog.opt_mask,
-            selection=prog.position,
-            soil_level=soil,
-        )
-        self._entry_data[DATA_KEY_LAST_PROGRAM] = prog.program
-        await _send(self._client, plaintext)
+            raise HomeAssistantError("Select a wash program before starting")
+        plaintext = washing_machine_start(**wash_command_parameters(self._entry_data))
+        await self._send_and_refresh(plaintext)
+        self._entry_data[DATA_KEY_LAST_PROGRAM] = prog.effective_stop_program
+        self._entry_data["last_requested_program"] = prog.name
+        self.coordinator.async_update_listeners()
 
 
 class CandyWashPauseButton(_WashBase):
-    @property
-    def name(self) -> str: return "Pause washing machine"
-
+    _attr_translation_key = "wash_pause_button"
     @property
     def unique_id(self) -> str:
         return UNIQUE_ID_WASH_PAUSE_BUTTON.format(self.config_id)
@@ -177,13 +160,11 @@ class CandyWashPauseButton(_WashBase):
         return super().available and self._wm_state() in _WM_RUNNING
 
     async def async_press(self) -> None:
-        await _send(self._client, washing_machine_pause())
+        await self._send_and_refresh(washing_machine_pause())
 
 
 class CandyWashResumeButton(_WashBase):
-    @property
-    def name(self) -> str: return "Resume washing machine"
-
+    _attr_translation_key = "wash_resume_button"
     @property
     def unique_id(self) -> str:
         return UNIQUE_ID_WASH_RESUME_BUTTON.format(self.config_id)
@@ -196,16 +177,14 @@ class CandyWashResumeButton(_WashBase):
         return super().available and self._wm_state() in _WM_PAUSED
 
     async def async_press(self) -> None:
-        await _send(self._client, washing_machine_resume())
+        await self._send_and_refresh(washing_machine_resume())
 
 
 class CandyWashStopButton(_WashBase):
+    _attr_translation_key = "wash_stop_button"
     def __init__(self, coordinator, client, config_id, entry_data):
         super().__init__(coordinator, client, config_id)
         self._entry_data = entry_data
-
-    @property
-    def name(self) -> str: return "Stop washing machine"
 
     @property
     def unique_id(self) -> str:
@@ -230,7 +209,7 @@ class CandyWashStopButton(_WashBase):
                 "Cannot stop: program unknown. Start a program from HA first, or call "
                 "washing_machine_stop service with explicit program."
             )
-        await _send(self._client, washing_machine_stop(program))
+        await self._send_and_refresh(washing_machine_stop(program))
 
 
 class _TumbleBase(CandyBaseButton):
@@ -246,13 +225,11 @@ class _TumbleBase(CandyBaseButton):
 
 
 class CandyTumbleStartButton(_TumbleBase):
+    _attr_translation_key = "tumble_start_button"
     def __init__(self, coordinator, client, config_id, entry_data, hass):
         super().__init__(coordinator, client, config_id)
         self._entry_data = entry_data
         self._hass = hass
-
-    @property
-    def name(self) -> str: return "Start tumble dryer"
 
     @property
     def unique_id(self) -> str:
@@ -291,13 +268,11 @@ class CandyTumbleStartButton(_TumbleBase):
             pr_str=prog.name,
         )
         self._entry_data[DATA_KEY_LAST_PROGRAM] = prog.program
-        await _send(self._client, plaintext)
+        await self._send_and_refresh(plaintext)
 
 
 class CandyTumblePauseButton(_TumbleBase):
-    @property
-    def name(self) -> str: return "Pause tumble dryer"
-
+    _attr_translation_key = "tumble_pause_button"
     @property
     def unique_id(self) -> str:
         return UNIQUE_ID_TUMBLE_PAUSE_BUTTON.format(self.config_id)
@@ -310,13 +285,11 @@ class CandyTumblePauseButton(_TumbleBase):
         return super().available and self._td_state() in _WM_RUNNING
 
     async def async_press(self) -> None:
-        await _send(self._client, tumble_dryer_pause())
+        await self._send_and_refresh(tumble_dryer_pause())
 
 
 class CandyTumbleResumeButton(_TumbleBase):
-    @property
-    def name(self) -> str: return "Resume tumble dryer"
-
+    _attr_translation_key = "tumble_resume_button"
     @property
     def unique_id(self) -> str:
         return UNIQUE_ID_TUMBLE_RESUME_BUTTON.format(self.config_id)
@@ -329,16 +302,14 @@ class CandyTumbleResumeButton(_TumbleBase):
         return super().available and self._td_state() in _WM_PAUSED
 
     async def async_press(self) -> None:
-        await _send(self._client, tumble_dryer_resume())
+        await self._send_and_refresh(tumble_dryer_resume())
 
 
 class CandyTumbleStopButton(_TumbleBase):
+    _attr_translation_key = "tumble_stop_button"
     def __init__(self, coordinator, client, config_id, entry_data):
         super().__init__(coordinator, client, config_id)
         self._entry_data = entry_data
-
-    @property
-    def name(self) -> str: return "Stop tumble dryer"
 
     @property
     def unique_id(self) -> str:
@@ -363,4 +334,4 @@ class CandyTumbleStopButton(_TumbleBase):
                 "Cannot stop: program unknown. Start a program from HA first, or call "
                 "tumble_dryer_stop service with explicit program."
             )
-        await _send(self._client, tumble_dryer_stop(program))
+        await self._send_and_refresh(tumble_dryer_stop(program))

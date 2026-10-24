@@ -3,11 +3,11 @@ from homeassistant.components.binary_sensor import (BinarySensorDeviceClass,
                                                      BinarySensorEntity)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.update_coordinator import (CoordinatorEntity,
                                                       DataUpdateCoordinator)
 
-from .client.model import TumbleDryerStatus
+from .client.model import TumbleDryerStatus, WashingMachineStatus
 from .const import (DATA_KEY_COORDINATOR, DEVICE_NAME_TUMBLE_DRYER, DOMAIN,
                     SUGGESTED_AREA_BATHROOM, UNIQUE_ID_TD_DOOR,
                     UNIQUE_ID_TD_FILTER, UNIQUE_ID_TD_WATER_TANK)
@@ -17,7 +17,9 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
     config_id = config_entry.entry_id
     coordinator = hass.data[DOMAIN][config_id][DATA_KEY_COORDINATOR]
 
-    if isinstance(coordinator.data, TumbleDryerStatus):
+    if isinstance(coordinator.data, WashingMachineStatus):
+        async_add_entities([CandyWashRemoteControlSensor(coordinator, config_id)])
+    elif isinstance(coordinator.data, TumbleDryerStatus):
         async_add_entities([
             CandyTumbleDoorSensor(coordinator, config_id),
             CandyTumbleFilterSensor(coordinator, config_id),
@@ -89,3 +91,27 @@ class CandyTumbleWaterTankSensor(_TumbleBinarySensorBase):
     @property
     def is_on(self) -> bool:
         return self.coordinator.data.water_tank_full
+
+
+class CandyWashRemoteControlSensor(CoordinatorEntity, BinarySensorEntity):
+    """Explain why the physical machine currently accepts/rejects commands."""
+    _attr_has_entity_name = True
+    _attr_translation_key = "wm_remote_control"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:remote"
+
+    def __init__(self, coordinator, config_id):
+        super().__init__(coordinator)
+        self.config_id = config_id
+
+    @property
+    def unique_id(self):
+        return f"{self.config_id}-wm_remote_control"
+
+    @property
+    def device_info(self):
+        return DeviceInfo(identifiers={(DOMAIN, self.config_id)})
+
+    @property
+    def is_on(self):
+        return self.coordinator.data.remote_control

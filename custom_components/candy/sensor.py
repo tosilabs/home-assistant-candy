@@ -141,7 +141,7 @@ class CandyWashingMachineSensor(CandyBaseSensor):
         status: WashingMachineStatus = self.coordinator.data
 
         attributes: dict[str, Any] = {
-            "program_type": status.program_type,
+            "program_type": str(status.program_type) if status.program_type else None,
             "program": status.program,
             "temperature": status.temp,
             "spin_speed": status.spin_speed,
@@ -492,9 +492,8 @@ class _WashSensorBase(CandyBaseSensor):
 
 
 class CandyWashProgramSensor(_WashSensorBase):
-    @property
-    def name(self) -> str:
-        return "Program"
+    _attr_has_entity_name = True
+    _attr_translation_key = "wm_program_sensor"
 
     @property
     def unique_id(self) -> str:
@@ -506,10 +505,26 @@ class CandyWashProgramSensor(_WashSensorBase):
 
     @property
     def state(self) -> StateType:
-        status: WashingMachineStatus = self.coordinator.data
+        status = self.coordinator.data
         if status.program_state in (WashProgramState.STOPPED, WashProgramState.END):
             return "No Program"
-        return str(status.program_type)
+        # Show the device's identifier, not an assumed recipe name.
+        if status.program is not None:
+            return f"PrNm {status.program}"
+        if status.program_type is not None:
+            return f"Pr {status.program_type.code}"
+        return None
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        status = self.coordinator.data
+        data = self.hass.data[DOMAIN][self.config_id]
+        return {
+            "program_number": status.program,
+            "program_code": status.program_code,
+            "last_requested_program": data.get("last_requested_program"),
+            "recipe_name_confirmed": False,
+        }
 
 
 class CandyWashTemperatureSensor(_WashSensorBase):

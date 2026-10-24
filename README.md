@@ -14,6 +14,11 @@ Integrim custom për Home Assistant që lidh pajisjet Candy/Hoover/Haier Simply�
 
 ## Çfarë ofron ky fork
 
+Për përdorimin e kontrolleve dhe programet e gatshme, shiko
+[udhëzuesin e programeve](docs/program-selection.md) dhe
+[panelin e ri me karta standarde HA](lovelace/candy_wm_controls.yaml).
+Paneli i mëparshëm me lavatriçe dhe tharëse ruhet te `lovelace/candy_wm_dashboard.yaml`.
+
 Ky version është përshtatur për rastin tonë me fokus në:
 - organizim më të qartë të entiteteve (Controls / Configuration / Sensors),
 - përshkrime programi në shqip (`description_sq`),

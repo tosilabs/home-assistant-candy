@@ -25,6 +25,7 @@ _LIMITER = AsyncLimiter(max_rate=1, time_period=3)
 class CandyClient:
 
     def __init__(self, session: ClientSession, device_ip: str, encryption_key: str, use_encryption: bool):
+        self.write_pending = False
         self.session = session  # Session is the default HA session, shouldn't be cleaned up
         self.device_ip = device_ip
         self.encryption_key = encryption_key
@@ -76,9 +77,12 @@ class CandyClient:
         """
         url = _write_url(self.device_ip, self.use_encryption, params)
         _LOGGER.debug("Sending command to %s", url)
-        async with _LIMITER, self.session.get(url) as resp:
+        async with _LIMITER, self.session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+            resp.raise_for_status()
             text = await resp.text()
             _LOGGER.debug("Command response: %s", text)
+            if "BAD REQUEST" in text.upper():
+                raise ValueError("Device rejected the write command")
             return text
 
     async def send_encrypted_data(self, hex_data: str) -> str:
@@ -93,9 +97,26 @@ class CandyClient:
         """
         url = _write_data_url(self.device_ip, hex_data)
         _LOGGER.debug("Sending raw command to %s", url)
-        async with _LIMITER, self.session.get(url) as resp:
+        async with _LIMITER, self.session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+            resp.raise_for_status()
             text = await resp.text()
             _LOGGER.debug("Command response: %s", text)
+            if "BAD REQUEST" in text.upper():
+                raise ValueError("Device rejected the write command")
+            return text
+
+    async def send_plaintext(self, plaintext: str) -> str:
+        """Send the captured command unchanged using the configured wire encoding."""
+        if self.use_encryption:
+            blob = (self.encrypt_command(plaintext) if self.encryption_key
+                    else plaintext.encode().hex().upper())
+            return await self.send_encrypted_data(blob)
+        url = f"http://{self.device_ip}/http-write.json?encrypted=0&{plaintext}"
+        async with _LIMITER, self.session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+            resp.raise_for_status()
+            text = await resp.text()
+            if "BAD REQUEST" in text.upper():
+                raise ValueError("Device rejected the write command")
             return text
 
     def encrypt_command(self, plaintext: str) -> str:

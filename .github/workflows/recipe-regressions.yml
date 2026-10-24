@@ -1,0 +1,24 @@
+name: Recipe regressions
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  recipe-regressions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m unittest discover -s checks -v
+      - run: python -m compileall -q custom_components/candy
+  home-assistant-selection:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements_test.txt
+      - run: python -m pytest tests/test_program_selection.py --asyncio-mode=auto -q
