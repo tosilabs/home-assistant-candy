@@ -4,13 +4,13 @@ Ruhet katalogu ekzistues nga Simply-Fi me 71 programe larjeje, përfshirë Train
 Backpacks dhe Duvet & Quilts. Nuk kërkohet cloud dhe nuk zëvendësohen komandat
 me protokollin e një modeli tjetër.
 
-1. Zgjidh kategorinë dhe programin.
+1. Zgjidh nga lista e vetme “Kategoria - Programi”, p.sh. “Sport & Leisure - Trainers”.
 2. Lexo përshkrimin në shqip, pastaj përshtat temperaturën, centrifugën dhe opsionet.
 3. Aktivizo kontrollin nga rrjeti në makinë dhe shtyp Fillo.
 4. Shiko gjendjen reale, fazën dhe kohën e mbetur.
 
 Zgjedhja përgatit cilësimet lokalisht; nuk nis larjen. Ndryshimi i programit i
-rivendos të gjitha cilësimet, edhe kur programi ndryshon nga filtri i kategorisë.
+rivendos të gjitha cilësimet sipas recetës së zgjedhur.
 Pas restart-it rikthehet zgjedhja me vlerat e katalogut; ndryshimet manuale të
 parametrave nuk ruhen, që të mos përzihen mes programeve.
 
@@ -83,3 +83,18 @@ Repository auanasgheps përdor të dhënat e modelit për lidhjen me programin b
 dhe një `RecipeId` për programet e gatshme. Këto formate nuk mund të trajtohen
 si të barabarta vetëm nga emri Trainers ose nga fotografia e panelit.
 Ky rishikim nuk ndryshon numrat e programeve ose formatin e komandës me hamendje.
+
+## Përditësimi 1.5.1
+
+Lista e vetme grupon programet sipas kategorisë dhe emrit, si te repository
+auanasgheps. Ruhet katalogu lokal ekzistues; nuk importohet një katalog i ri
+nga cloud. Emri i brendshëm, përshkrimet shqip dhe parametrat mbeten të njëjtë.
+
+Zgjedhjet e ruajtura me emra të vjetër (p.sh. Trainers) rikthehen automatikisht.
+ID-ja e entitetit të programit ruhet. Filtri i vjetër i kategorisë çaktivizohet;
+hiqe nga panelet e personalizuara. Në automatizimet që zgjedhin programe,
+përdor emrin e plotë të opsionit të ri, p.sh. Sport & Leisure - Trainers.
+Automatizimet që ndryshonin vetëm kategorinë duhen përshtatur.
+
+Ky version ndryshon paraqitjen dhe përzgjedhjen. Nuk ndryshon protokollin e
+nisjes; problemi fizik i Trainers kërkon ende krahasim me komandat e Simply-Fi.

@@ -1,4 +1,4 @@
-"""Exercise category selection, restore and Start using real HA dispatching."""
+"""Exercise grouped selection, restore and Start using real HA dispatching."""
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -12,7 +12,6 @@ from custom_components.candy.const import (
 )
 from custom_components.candy.select import (
     CandyWashProgramSelect, CandyWashTemperatureSelect, CandyWashSpinSelect,
-    _WM_PROGRAMS_BY_CATEGORY,
 )
 from custom_components.candy.wash_settings import select_wash_program
 
@@ -24,24 +23,31 @@ def entity(cls, hass, data):
     return instance
 
 
-async def test_category_change_resets_settings_and_notifies_controls(hass):
-    data = {}
-    select_wash_program(data, "Trainers")
-    data.update(wm_temp=90, wm_spin=15, wm_steam=2, wm_soil=3)
+async def test_grouped_options_ignore_retired_category_filter(hass):
+    data = {DATA_KEY_WM_CATEGORY: "Cycles"}
     program = entity(CandyWashProgramSelect, hass, data)
-    program._current_option = "Trainers"
-    callback = MagicMock()
-    unsub = async_dispatcher_connect(hass, SIGNAL_WM_PROGRAM_CHANGED.format("test"), callback)
-    try:
-        category = next(cat for cat, names in _WM_PROGRAMS_BY_CATEGORY.items() if "Trainers" not in names)
-        data[DATA_KEY_WM_CATEGORY] = category
-        program._on_category_changed(category)
-        await hass.async_block_till_done()
-        assert data["wm_program_name"] == program.current_option
-        assert data["wm_temp"] != 90
-        callback.assert_called_once()
-    finally:
-        unsub()
+    await program.async_select_option("Sport & Leisure - Trainers")
+    assert program.current_option == "Sport & Leisure - Trainers"
+    assert data["wm_program_name"] == "Trainers"
+    assert program.extra_state_attributes["program_name"] == "Trainers"
+    assert program.extra_state_attributes["description_sq"]
+    assert len(program.options) == 71
+
+
+@pytest.mark.parametrize("saved,attrs", [
+    ("Trainers", {}),
+    ("Sport & Leisure - Trainers", {}),
+    ("Old category - Trainers", {"program_name": "Trainers"}),
+])
+async def test_restore_keeps_recipe_identity(hass, saved, attrs):
+    from homeassistant.core import State
+    program = entity(CandyWashProgramSelect, hass, {})
+    program.async_get_last_state = AsyncMock(return_value=State("select.test", saved, attrs))
+    with patch("custom_components.candy.select._CandySelectBase.async_added_to_hass", new_callable=AsyncMock):
+        await program.async_added_to_hass()
+    assert program.current_option == "Sport & Leisure - Trainers"
+    assert program._entry_data["wm_temp"] == 20
+    assert program._entry_data["wm_spin"] == 4
 
 
 async def test_direct_recipe_selection_updates_controls(hass):
@@ -52,7 +58,7 @@ async def test_direct_recipe_selection_updates_controls(hass):
     unsub_temp = async_dispatcher_connect(hass, SIGNAL_WM_PROGRAM_CHANGED.format("test"), temp._on_program_changed)
     unsub_spin = async_dispatcher_connect(hass, SIGNAL_WM_PROGRAM_CHANGED.format("test"), spin._on_program_changed)
     try:
-        await program.async_select_option("Trainers")
+        await program.async_select_option("Sport & Leisure - Trainers")
         await hass.async_block_till_done()
         assert temp.current_option == "20°C"
         assert spin.current_option == "400 rpm"
@@ -101,7 +107,8 @@ async def test_start_sends_selected_recipe_and_refreshes(hass):
     coordinator.async_request_refresh.side_effect = report_running
     client = SimpleNamespace(write_pending=False, send_plaintext=AsyncMock())
     data = {}
-    select_wash_program(data, "Trainers")
+    program = entity(CandyWashProgramSelect, hass, data)
+    await program.async_select_option("Sport & Leisure - Trainers")
     start = CandyWashStartButton(coordinator, client, "test", data, hass)
     with patch("custom_components.candy.button.asyncio.sleep", new_callable=AsyncMock):
         await start.async_press()
@@ -219,3 +226,52 @@ async def test_downloaded_diagnostics_exclude_config_secrets(hass):
     diagnostic = await async_get_config_entry_diagnostics(hass, entry)
     assert "private" not in str(diagnostic)
     assert "192.0.2.1" not in str(diagnostic)
+
+
+async def test_grouped_select_service_and_retired_category_migration(hass, aioclient_mock):
+    from pathlib import Path
+    from homeassistant.helpers import entity_registry as er
+    from custom_components.candy.const import DOMAIN
+    from .common import init_integration, registered_entity_id
+    fixture = Path(__file__).parent / "components/washing_machine/fixtures/idle.json"
+    await init_integration(hass, aioclient_mock, fixture.read_text())
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    registry = er.async_get(hass)
+    old = registry.async_get_or_create("select", DOMAIN,
+        f"{entry.entry_id}-s01_wm_category", config_entry=entry,
+        suggested_object_id="old_category")
+    program_id = registered_entity_id(hass, "select", "s02_wm_program")
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert registry.async_get(old.entity_id).disabled_by == er.RegistryEntryDisabler.INTEGRATION
+    assert registered_entity_id(hass, "select", "s02_wm_program") == program_id
+    await hass.services.async_call("select", "select_option", {
+        "entity_id": program_id, "option": "Sport & Leisure - Trainers",
+    }, blocking=True)
+    assert hass.states.get(program_id).state == "Sport & Leisure - Trainers"
+    assert hass.data[DOMAIN][entry.entry_id]["wm_program_name"] == "Trainers"
+
+
+async def test_dryer_start_resolves_grouped_label_without_changing_command(hass):
+    from homeassistant.helpers import entity_registry as er
+    from custom_components.candy.const import DOMAIN
+    from custom_components.candy.select import CandyTumbleProgramSelect, UNIQUE_ID_TD_PROGRAM_SELECT
+    from custom_components.candy.button import CandyTumbleStartButton
+    from custom_components.candy.programs import TUMBLE_DRYER_PROGRAMS_BY_NAME
+    from custom_components.candy.client.commands import tumble_dryer_start
+    data = {}
+    program = entity(CandyTumbleProgramSelect, hass, data)
+    await program.async_select_option("Sport & Leisure - Backpacks")
+    registry = er.async_get(hass)
+    registered = registry.async_get_or_create("select", DOMAIN, UNIQUE_ID_TD_PROGRAM_SELECT.format("test"))
+    hass.states.async_set(registered.entity_id, program.current_option)
+    client = SimpleNamespace(write_pending=False, send_plaintext=AsyncMock())
+    start = CandyTumbleStartButton(MagicMock(), client, "test", data, hass)
+    start._send_and_refresh = AsyncMock()
+    await start.async_press()
+    recipe = TUMBLE_DRYER_PROGRAMS_BY_NAME["Backpacks"]
+    start._send_and_refresh.assert_awaited_once_with(tumble_dryer_start(
+        program=recipe.program, time=recipe.time, opt_mask=recipe.opt_mask,
+        dry_level=recipe.dry_level, selection=recipe.selection,
+        rapid=recipe.rapid, pr_str=recipe.name,
+    ))
