@@ -128,3 +128,26 @@ async def test_start_rejects_remote_control_disabled(hass):
     with pytest.raises(HomeAssistantError):
         await start.async_press()
     client.send_plaintext.assert_not_awaited()
+
+
+async def test_integration_registers_controls_and_reports_device_codes(hass, aioclient_mock):
+    """Use registry identities, independent of translated names and entity IDs."""
+    from pathlib import Path
+    from homeassistant.helpers import entity_registry as er
+    from custom_components.candy.const import DOMAIN
+    from .common import init_integration
+    fixture = Path(__file__).parent / "components/washing_machine/fixtures/running_wash.json"
+    await init_integration(hass, aioclient_mock, fixture.read_text())
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    registry = er.async_get(hass)
+    for platform, suffix in [
+        ("select", "s02_wm_program"), ("button", "wash_start_button"),
+        ("binary_sensor", "wm_remote_control"), ("sensor", "wm_program_sensor"),
+    ]:
+        entity_id = registry.async_get_entity_id(platform, DOMAIN, f"{entry.entry_id}-{suffix}")
+        assert entity_id is not None, suffix
+        state = hass.states.get(entity_id)
+        assert state is not None, suffix
+        if suffix == "wm_program_sensor":
+            assert state.state.startswith(("PrNm ", "Pr "))
+            assert state.attributes["recipe_name_confirmed"] is False
