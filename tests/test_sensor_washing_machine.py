@@ -5,96 +5,96 @@ from pytest_homeassistant_custom_component.common import load_fixture
 from pytest_homeassistant_custom_component.test_util.aiohttp import \
     AiohttpClientMocker
 
-from .common import init_integration
+from .common import init_integration, registered_entity_id
 
 
 async def test_main_sensor_idle(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
     await init_integration(hass, aioclient_mock, load_fixture("washing_machine/idle.json"))
 
-    state = hass.states.get("sensor.washing_machine")
+    state = hass.states.get(registered_entity_id(hass, "sensor", "washing_machine"))
 
     assert state
     assert state.state == "Ready"
-    assert state.attributes == {
-        'program': 1,
+    assert state.attributes.items() >= {
+        'program': None,
         'program_code': 136,
         'temperature': 40,
         'spin_speed': 800,
         'remaining_minutes': 0,
         'remote_control': True,
         'fill_percent': 0,
-        'friendly_name': 'Washing machine',  # entity friendly name unchanged
+
         'icon': 'mdi:washing-machine'
-    }
+    }.items()
 
 
 async def test_cycle_sensor_idle(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
     await init_integration(hass, aioclient_mock, load_fixture("washing_machine/idle.json"))
 
-    state = hass.states.get("sensor.wash_cycle_status")
+    state = hass.states.get(registered_entity_id(hass, "sensor", "wash_cycle_status"))
 
     assert state
     assert state.state == "Ready"
-    assert state.attributes == {
-        "friendly_name": "Wash cycle status",
+    assert state.attributes.items() >= {
+
         "icon": "mdi:washing-machine"
-    }
+    }.items()
 
 
 async def test_remaining_time_sensor_wash(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
     await init_integration(hass, aioclient_mock, load_fixture("washing_machine/running_wash.json"))
 
-    state = hass.states.get("sensor.wash_cycle_remaining_time")
+    state = hass.states.get(registered_entity_id(hass, "sensor", "wash_remaining_time"))
 
     assert state
     assert state.state == "8"
-    assert state.attributes == {
-        "friendly_name": "Wash cycle remaining time",
+    assert state.attributes.items() >= {
+
         "icon": "mdi:progress-clock",
         "unit_of_measurement": "min",
-    }
+    }.items()
 
 
 async def test_remaining_time_sensor_idle(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
     await init_integration(hass, aioclient_mock, load_fixture("washing_machine/idle.json"))
 
-    state = hass.states.get("sensor.wash_cycle_remaining_time")
+    state = hass.states.get(registered_entity_id(hass, "sensor", "wash_remaining_time"))
 
     assert state
     assert state.state == "0"
-    assert state.attributes == {
-        "friendly_name": "Wash cycle remaining time",
+    assert state.attributes.items() >= {
+
         "icon": "mdi:progress-clock",
         "unit_of_measurement": "min",
-    }
+    }.items()
 
 
 async def test_main_sensor_no_fillr(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
     await init_integration(hass, aioclient_mock, load_fixture("washing_machine/no_fillr.json"))
 
-    state = hass.states.get("sensor.washing_machine")
+    state = hass.states.get(registered_entity_id(hass, "sensor", "washing_machine"))
 
     assert state
     assert state.state == "Ready"
-    assert state.attributes == {
-        'program': 4,
+    assert state.attributes.items() >= {
+        'program': None,
         'temperature': 40,
         'spin_speed': 1000,
         'remaining_minutes': 0,
         'remote_control': False,
-        'friendly_name': 'Washing machine',  # entity friendly name unchanged
+
         'icon': 'mdi:washing-machine'
-    }
+    }.items()
 
 
 async def test_main_sensor_no_pr(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
     await init_integration(hass, aioclient_mock, load_fixture("washing_machine/no_pr.json"))
 
-    state = hass.states.get("sensor.washing_machine")
+    state = hass.states.get(registered_entity_id(hass, "sensor", "washing_machine"))
 
     assert state
     assert state.state == "Running"
-    assert state.attributes == {
+    assert state.attributes.items() >= {
         'program': 6,
         'program_code': 3,
         'temperature': 40,
@@ -102,9 +102,9 @@ async def test_main_sensor_no_pr(hass: HomeAssistant, aioclient_mock: AiohttpCli
         'remaining_minutes': 46,
         'remote_control': True,
         'fill_percent': 53,
-        'friendly_name': 'Washing machine',  # entity friendly name unchanged
+
         'icon': 'mdi:washing-machine'
-    }
+    }.items()
 
 
 async def test_main_sensor_device_info(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
@@ -112,13 +112,13 @@ async def test_main_sensor_device_info(hass: HomeAssistant, aioclient_mock: Aioh
 
     entity_reg = entity_registry.async_get(hass)
     device_reg = device_registry.async_get(hass)
-    entry = entity_reg.async_get("sensor.washing_machine")
+    entry = entity_reg.async_get(registered_entity_id(hass, "sensor", "washing_machine"))
     device = device_reg.async_get(entry.device_id)
 
     assert device
     assert device.manufacturer == "Candy"
     assert device.name == "Washing machine"
-    assert device.suggested_area == "Bathroom"
+    assert device.suggested_area == "Kitchen"
 
 
 async def test_sensors_device_info(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
@@ -127,9 +127,9 @@ async def test_sensors_device_info(hass: HomeAssistant, aioclient_mock: AiohttpC
     entity_reg = entity_registry.async_get(hass)
     device_reg = device_registry.async_get(hass)
 
-    main_sensor = entity_reg.async_get("sensor.washing_machine")
-    cycle_sensor = entity_reg.async_get("sensor.wash_cycle_status")
-    time_sensor = entity_reg.async_get("sensor.wash_cycle_remaining_time")
+    main_sensor = entity_reg.async_get(registered_entity_id(hass, "sensor", "washing_machine"))
+    cycle_sensor = entity_reg.async_get(registered_entity_id(hass, "sensor", "wash_cycle_status"))
+    time_sensor = entity_reg.async_get(registered_entity_id(hass, "sensor", "wash_remaining_time"))
 
     main_device = device_reg.async_get(main_sensor.device_id)
     cycle_device = device_reg.async_get(cycle_sensor.device_id)

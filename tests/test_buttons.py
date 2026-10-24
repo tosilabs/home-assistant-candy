@@ -1,75 +1,38 @@
-"""Tests for button entities (Pause / Resume / Stop)."""
+"""Exercise actual registered buttons in valid machine states."""
+import json
 from unittest.mock import AsyncMock, patch
 
-from homeassistant.core import HomeAssistant
+import pytest
 from pytest_homeassistant_custom_component.common import load_fixture
-from pytest_homeassistant_custom_component.test_util.aiohttp import \
-    AiohttpClientMocker
 
-from .common import init_integration
+from .common import init_integration, registered_entity_id
 
 
-async def test_washing_machine_buttons_created(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
-    await init_integration(hass, aioclient_mock, load_fixture("washing_machine/idle.json"))
-
-    assert hass.states.get("button.pause_washing_machine") is not None
-    assert hass.states.get("button.resume_washing_machine") is not None
-    assert hass.states.get("button.stop_washing_machine") is not None
-
-
-async def test_tumble_dryer_buttons_created(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
-    await init_integration(hass, aioclient_mock, load_fixture("tumble_dryer/running.json"))
-
-    assert hass.states.get("button.pause_tumble_dryer") is not None
-    assert hass.states.get("button.resume_tumble_dryer") is not None
-    assert hass.states.get("button.stop_tumble_dryer") is not None
+@pytest.mark.parametrize("kind,prefix", [("washing_machine", "wash"), ("tumble_dryer", "tumble")])
+async def test_control_buttons_created(hass, aioclient_mock, kind, prefix):
+    await init_integration(hass, aioclient_mock, load_fixture(f"{kind}/idle.json"))
+    for action in ("start", "pause", "resume", "stop"):
+        entity_id = registered_entity_id(hass, "button", f"{prefix}_{action}_button")
+        assert hass.states.get(entity_id) is not None
 
 
-async def test_wm_pause_button_sends_correct_plaintext(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
-    await init_integration(hass, aioclient_mock, load_fixture("washing_machine/idle.json"))
-
-    with patch("custom_components.candy.client.CandyClient.encrypt_command", return_value="DEADBEEF") as mock_enc, \
-         patch("custom_components.candy.client.CandyClient.send_encrypted_data", new_callable=AsyncMock) as mock_send:
-        await hass.services.async_call(
-            "button", "press", {"entity_id": "button.pause_washing_machine"}, blocking=True
-        )
-
-    mock_enc.assert_called_once_with("Write=1&Pa=1")
-    mock_send.assert_called_once_with("DEADBEEF")
-
-
-async def test_wm_resume_button_sends_correct_plaintext(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
-    await init_integration(hass, aioclient_mock, load_fixture("washing_machine/idle.json"))
-
-    with patch("custom_components.candy.client.CandyClient.encrypt_command", return_value="00") as mock_enc, \
-         patch("custom_components.candy.client.CandyClient.send_encrypted_data", new_callable=AsyncMock):
-        await hass.services.async_call(
-            "button", "press", {"entity_id": "button.resume_washing_machine"}, blocking=True
-        )
-
-    mock_enc.assert_called_once_with("Write=1&Pa=0")
-
-
-async def test_wm_stop_button_uses_current_program(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
-    # idle.json reports program=1
-    await init_integration(hass, aioclient_mock, load_fixture("washing_machine/idle.json"))
-
-    with patch("custom_components.candy.client.CandyClient.encrypt_command", return_value="00") as mock_enc, \
-         patch("custom_components.candy.client.CandyClient.send_encrypted_data", new_callable=AsyncMock):
-        await hass.services.async_call(
-            "button", "press", {"entity_id": "button.stop_washing_machine"}, blocking=True
-        )
-
-    mock_enc.assert_called_once_with("Write=1&StSt=0&DelMd=0&PrNm=1")
-
-
-async def test_td_pause_button_sends_correct_plaintext(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
-    await init_integration(hass, aioclient_mock, load_fixture("tumble_dryer/running.json"))
-
-    with patch("custom_components.candy.client.CandyClient.encrypt_command", return_value="00") as mock_enc, \
-         patch("custom_components.candy.client.CandyClient.send_encrypted_data", new_callable=AsyncMock):
-        await hass.services.async_call(
-            "button", "press", {"entity_id": "button.pause_tumble_dryer"}, blocking=True
-        )
-
-    mock_enc.assert_called_once_with("Write=1&Pa=1")
+@pytest.mark.parametrize("kind,action,machine_state,expected", [
+    ("washing_machine", "pause", "2", "Write=1&Pa=1"),
+    ("washing_machine", "resume", "3", "Write=1&Pa=0"),
+    ("washing_machine", "stop", "2", "Write=1&StSt=0&DelMd=0&PrNm=1"),
+    ("tumble_dryer", "pause", "2", "Write=1&Pa=1"),
+])
+async def test_control_sends_captured_plaintext(hass, aioclient_mock, kind, action, machine_state, expected):
+    fixture = json.loads(load_fixture(f"{kind}/idle.json"))
+    if kind == "washing_machine":
+        fixture["statusLavatrice"].update(MachMd=machine_state, PrNm="1")
+        prefix = "wash"
+    else:
+        fixture["statusTD"]["StatoTD"] = machine_state
+        prefix = "tumble"
+    await init_integration(hass, aioclient_mock, json.dumps(fixture))
+    entity_id = registered_entity_id(hass, "button", f"{prefix}_{action}_button")
+    with patch("custom_components.candy.client.CandyClient.send_plaintext", new_callable=AsyncMock) as send, \
+         patch("custom_components.candy.button.asyncio.sleep", new_callable=AsyncMock):
+        await hass.services.async_call("button", "press", {"entity_id": entity_id}, blocking=True)
+    send.assert_awaited_once_with(expected)

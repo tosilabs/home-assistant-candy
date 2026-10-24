@@ -180,9 +180,9 @@ async def test_send_encrypted_data_uses_data_param(hass, aioclient_mock):
     assert dict(url.query) == {"encrypted": "1", "data": hex_blob}
 
 
-async def test_encrypt_decrypt_roundtrip(hass):
+def test_encrypt_decrypt_roundtrip():
     client = CandyClient(
-        async_get_clientsession(hass), device_ip=TEST_IP, encryption_key="abcdef0123456789", use_encryption=True
+        None, device_ip=TEST_IP, encryption_key="abcdef0123456789", use_encryption=True
     )
     plaintext = "WashProgr=13&Temp=40&WiFiStatus=1"
     hex_blob = client.encrypt_command(plaintext)

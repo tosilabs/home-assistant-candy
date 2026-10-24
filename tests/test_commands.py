@@ -11,7 +11,7 @@ from custom_components.candy.client.commands import (tumble_dryer_pause,
 
 def test_wm_start_minimal():
     assert washing_machine_start(program=4) == (
-        "Write=1&Pa=0&Sel=0&PrNm=4&StSt=1&OptMsk=0&Stm=0&RecipeId=0&CheckUpState=0"
+        "Write=1&Pa=0&Sel=0&PrNm=4&StSt=1&Stm=0&RecipeId=0&CheckUpState=0"
     )
 
 
@@ -19,7 +19,7 @@ def test_wm_start_with_options():
     assert washing_machine_start(
         program=13, spin_target=15, spin_default=10
     ) == (
-        "Write=1&Pa=0&Sel=0&PrNm=13&StSt=1&SpdTgt=15&SpdDef=10&OptMsk=0&Stm=0&RecipeId=0&CheckUpState=0"
+        "Write=1&Pa=0&Sel=0&PrNm=13&StSt=1&SpdTgt=15&SpdDef=10&Stm=0&RecipeId=0&CheckUpState=0"
     )
 
 
@@ -54,7 +54,7 @@ def test_td_start_minimal():
 
 def test_td_start_no_time_mask():
     assert tumble_dryer_start(program=2) == (
-        "Write=1&PrNm=2&Time=0&OptMsk=0&RecipeId=0&PrStr=&StSt=1"
+        "Write=1&PrNm=2&Time=0&RecipeId=0&PrStr=&StSt=1"
     )
 
 

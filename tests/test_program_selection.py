@@ -95,6 +95,10 @@ async def test_start_sends_selected_recipe_and_refreshes(hass):
     coordinator.data = status
     coordinator.last_update_success = True
     coordinator.async_request_refresh = AsyncMock()
+    from custom_components.candy.client.model import MachineState
+    def report_running():
+        status.machine_state = MachineState.RUNNING
+    coordinator.async_request_refresh.side_effect = report_running
     client = SimpleNamespace(write_pending=False, send_plaintext=AsyncMock())
     data = {}
     select_wash_program(data, "Trainers")
@@ -107,6 +111,8 @@ async def test_start_sends_selected_recipe_and_refreshes(hass):
     assert "SpdTgt=4" in payload
     assert client.write_pending is False
     assert data["last_requested_program"] == "Trainers"
+    assert data["last_start"]["result"] == "running_recipe_unverified"
+    assert data["last_start"]["recipe_confirmed"] is False
     coordinator.async_request_refresh.assert_awaited_once()
 
 
@@ -151,3 +157,65 @@ async def test_integration_registers_controls_and_reports_device_codes(hass, aio
         if suffix == "wm_program_sensor":
             assert state.state.startswith(("PrNm ", "Pr "))
             assert state.attributes["recipe_name_confirmed"] is False
+
+
+async def test_http_success_but_panel_stays_ready_is_not_confirmed(hass):
+    import json
+    from pathlib import Path
+    from custom_components.candy.button import CandyWashStartButton, StartNotConfirmed
+    from custom_components.candy.client.model import WashingMachineStatus
+    fixture = Path(__file__).parent / "components/washing_machine/fixtures/idle.json"
+    status = WashingMachineStatus.from_json(json.loads(fixture.read_text())["statusLavatrice"])
+    status.temp = 40
+    status.spin_speed = 1000
+    coordinator = MagicMock()
+    coordinator.data = status
+    coordinator.last_update_success = True
+    coordinator.async_request_refresh = AsyncMock()
+    client = SimpleNamespace(write_pending=False, send_plaintext=AsyncMock(return_value="OK"))
+    data = {}
+    select_wash_program(data, "Trainers")
+    start = CandyWashStartButton(coordinator, client, "test", data, hass)
+    with patch("custom_components.candy.button.asyncio.sleep", new_callable=AsyncMock):
+        with pytest.raises(StartNotConfirmed):
+            await start.async_press()
+    client.send_plaintext.assert_awaited_once()
+    assert coordinator.async_request_refresh.await_count == 3
+    assert client.write_pending is False
+    assert data["last_start"]["result"] == "not_confirmed"
+    assert data["last_start"]["after"]["temperature"] == 40
+    assert data["last_start"]["after"]["spin_rpm"] == 1000
+    assert "last_requested_program" not in data
+
+
+async def test_rejected_command_unlocks_buttons_and_records_failure(hass):
+    import json
+    from pathlib import Path
+    from custom_components.candy.button import CandyWashStartButton
+    from custom_components.candy.client.model import WashingMachineStatus
+    fixture = Path(__file__).parent / "components/washing_machine/fixtures/idle.json"
+    status = WashingMachineStatus.from_json(json.loads(fixture.read_text())["statusLavatrice"])
+    coordinator = MagicMock()
+    coordinator.data = status
+    coordinator.last_update_success = True
+    coordinator.async_request_refresh = AsyncMock()
+    client = SimpleNamespace(write_pending=False, send_plaintext=AsyncMock(side_effect=ValueError("Rejected")))
+    data = {}
+    select_wash_program(data, "Trainers")
+    start = CandyWashStartButton(coordinator, client, "test", data, hass)
+    with pytest.raises(ValueError):
+        await start.async_press()
+    assert data["last_start"]["result"] == "send_failed"
+    assert client.write_pending is False
+    client.send_plaintext.assert_awaited_once()
+
+
+async def test_downloaded_diagnostics_exclude_config_secrets(hass):
+    from custom_components.candy.diagnostics import async_get_config_entry_diagnostics
+    from custom_components.candy.const import DOMAIN, DATA_KEY_COORDINATOR
+    coordinator = SimpleNamespace(data=None, last_update_success=False)
+    hass.data.setdefault(DOMAIN, {})["test"] = {DATA_KEY_COORDINATOR: coordinator}
+    entry = SimpleNamespace(entry_id="test", data={"password":"private", "ip_address":"192.0.2.1"})
+    diagnostic = await async_get_config_entry_diagnostics(hass, entry)
+    assert "private" not in str(diagnostic)
+    assert "192.0.2.1" not in str(diagnostic)

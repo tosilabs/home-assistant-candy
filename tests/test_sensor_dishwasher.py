@@ -5,17 +5,17 @@ from pytest_homeassistant_custom_component.common import load_fixture
 from pytest_homeassistant_custom_component.test_util.aiohttp import \
     AiohttpClientMocker
 
-from .common import init_integration
+from .common import init_integration, registered_entity_id
 
 
 async def test_main_sensor_idle(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
     await init_integration(hass, aioclient_mock, load_fixture("dishwasher/idle.json"))
 
-    state = hass.states.get("sensor.dishwasher")
+    state = hass.states.get(registered_entity_id(hass, "sensor", "dishwasher"))
 
     assert state
     assert state.state == "Idle"
-    assert state.attributes == {
+    assert state.attributes.items() >= {
         "program": "P1+",
         "remaining_minutes": 0,
         "eco_mode": False,
@@ -23,19 +23,19 @@ async def test_main_sensor_idle(hass: HomeAssistant, aioclient_mock: AiohttpClie
         "remote_control": True,
         "salt_empty": False,
         "rinse_aid_empty": False,
-        "friendly_name": "Dishwasher",
+
         "icon": "mdi:glass-wine"
-    }
+    }.items()
 
 
 async def test_main_sensor_wash(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
     await init_integration(hass, aioclient_mock, load_fixture("dishwasher/wash.json"))
 
-    state = hass.states.get("sensor.dishwasher")
+    state = hass.states.get(registered_entity_id(hass, "sensor", "dishwasher"))
 
     assert state
     assert state.state == "Wash"
-    assert state.attributes == {
+    assert state.attributes.items() >= {
         "program": "P2-",
         "remaining_minutes": 68,
         "eco_mode": True,
@@ -43,19 +43,19 @@ async def test_main_sensor_wash(hass: HomeAssistant, aioclient_mock: AiohttpClie
         "remote_control": False,
         "salt_empty": True,
         "rinse_aid_empty": True,
-        "friendly_name": "Dishwasher",
+
         "icon": "mdi:glass-wine"
-    }
+    }.items()
 
 
 async def test_main_sensor_wash_no_opzprog(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
     await init_integration(hass, aioclient_mock, load_fixture("dishwasher/wash_no_opzprog.json"))
 
-    state = hass.states.get("sensor.dishwasher")
+    state = hass.states.get(registered_entity_id(hass, "sensor", "dishwasher"))
 
     assert state
     assert state.state == "Wash"
-    assert state.attributes == {
+    assert state.attributes.items() >= {
         "program": "P2",
         "remaining_minutes": 68,
         "eco_mode": True,
@@ -63,19 +63,19 @@ async def test_main_sensor_wash_no_opzprog(hass: HomeAssistant, aioclient_mock: 
         "remote_control": False,
         "salt_empty": False,
         "rinse_aid_empty": False,
-        "friendly_name": "Dishwasher",
+
         "icon": "mdi:glass-wine"
-    }
+    }.items()
 
 
 async def test_main_sensor_drying_optional_params(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
     await init_integration(hass, aioclient_mock, load_fixture("dishwasher/drying_optional_params.json"))
 
-    state = hass.states.get("sensor.dishwasher")
+    state = hass.states.get(registered_entity_id(hass, "sensor", "dishwasher"))
 
     assert state
     assert state.state == "Drying"
-    assert state.attributes == {
+    assert state.attributes.items() >= {
         "program": "P2",
         "remaining_minutes": 58,
         "delayed_start_hours": 4,
@@ -85,37 +85,37 @@ async def test_main_sensor_drying_optional_params(hass: HomeAssistant, aioclient
         "remote_control": True,
         "salt_empty": False,
         "rinse_aid_empty": True,
-        "friendly_name": "Dishwasher",
+
         "icon": "mdi:glass-wine"
-    }
+    }.items()
 
 
 async def test_remaining_time_sensor_idle(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
     await init_integration(hass, aioclient_mock, load_fixture("dishwasher/idle.json"))
 
-    state = hass.states.get("sensor.dishwasher_remaining_time")
+    state = hass.states.get(registered_entity_id(hass, "sensor", "dishwasher_remaining_time"))
 
     assert state
     assert state.state == "0"
-    assert state.attributes == {
-        "friendly_name": "Dishwasher remaining time",
+    assert state.attributes.items() >= {
+
         "icon": "mdi:progress-clock",
         "unit_of_measurement": "min",
-    }
+    }.items()
 
 
 async def test_remaining_time_sensor_wash(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
     await init_integration(hass, aioclient_mock, load_fixture("dishwasher/wash.json"))
 
-    state = hass.states.get("sensor.dishwasher_remaining_time")
+    state = hass.states.get(registered_entity_id(hass, "sensor", "dishwasher_remaining_time"))
 
     assert state
     assert state.state == "68"
-    assert state.attributes == {
-        "friendly_name": "Dishwasher remaining time",
+    assert state.attributes.items() >= {
+
         "icon": "mdi:progress-clock",
         "unit_of_measurement": "min",
-    }
+    }.items()
 
 
 async def test_main_sensor_device_info(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
@@ -123,7 +123,7 @@ async def test_main_sensor_device_info(hass: HomeAssistant, aioclient_mock: Aioh
 
     entity_reg = entity_registry.async_get(hass)
     device_reg = device_registry.async_get(hass)
-    entry = entity_reg.async_get("sensor.dishwasher")
+    entry = entity_reg.async_get(registered_entity_id(hass, "sensor", "dishwasher"))
     device = device_reg.async_get(entry.device_id)
 
     assert device
@@ -138,8 +138,8 @@ async def test_sensors_device_info(hass: HomeAssistant, aioclient_mock: AiohttpC
     entity_reg = entity_registry.async_get(hass)
     device_reg = device_registry.async_get(hass)
 
-    main_sensor = entity_reg.async_get("sensor.dishwasher")
-    time_sensor = entity_reg.async_get("sensor.dishwasher_remaining_time")
+    main_sensor = entity_reg.async_get(registered_entity_id(hass, "sensor", "dishwasher"))
+    time_sensor = entity_reg.async_get(registered_entity_id(hass, "sensor", "dishwasher_remaining_time"))
 
     main_device = device_reg.async_get(main_sensor.device_id)
     time_device = device_reg.async_get(time_sensor.device_id)

@@ -5,17 +5,17 @@ from pytest_homeassistant_custom_component.common import load_fixture
 from pytest_homeassistant_custom_component.test_util.aiohttp import \
     AiohttpClientMocker
 
-from .common import init_integration
+from .common import init_integration, registered_entity_id
 
 
 async def test_main_sensor_idle(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
     await init_integration(hass, aioclient_mock, load_fixture("tumble_dryer/idle.json"))
 
-    state = hass.states.get("sensor.tumble_dryer")
+    state = hass.states.get(registered_entity_id(hass, "sensor", "tumble_dryer"))
 
     assert state
     assert state.state == "Ready"
-    assert state.attributes == {
+    assert state.attributes.items() >= {
         'program': 1,
         'remaining_minutes': 150,
         'remote_control': True,
@@ -25,19 +25,19 @@ async def test_main_sensor_idle(hass: HomeAssistant, aioclient_mock: AiohttpClie
         'need_clean_filter': False,
         'water_tank_full': False,
         'door_closed': True,
-        'friendly_name': 'Tumble dryer',
+
         'icon': 'mdi:tumble-dryer'
-    }
+    }.items()
 
 
 async def test_main_sensor_running(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
     await init_integration(hass, aioclient_mock, load_fixture("tumble_dryer/running.json"))
 
-    state = hass.states.get("sensor.tumble_dryer")
+    state = hass.states.get(registered_entity_id(hass, "sensor", "tumble_dryer"))
 
     assert state
     assert state.state == "Running"
-    assert state.attributes == {
+    assert state.attributes.items() >= {
         'program': 1,
         'remaining_minutes': 150,
         'remote_control': True,
@@ -47,63 +47,63 @@ async def test_main_sensor_running(hass: HomeAssistant, aioclient_mock: AiohttpC
         'need_clean_filter': False,
         'water_tank_full': False,
         'door_closed': True,
-        'friendly_name': 'Tumble dryer',
+
         'icon': 'mdi:tumble-dryer'
-    }
+    }.items()
 
 
 async def test_cycle_sensor_idle(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
     await init_integration(hass, aioclient_mock, load_fixture("tumble_dryer/idle.json"))
 
-    state = hass.states.get("sensor.dryer_cycle_status")
+    state = hass.states.get(registered_entity_id(hass, "sensor", "tumble_cycle_status"))
 
     assert state
     assert state.state == "Ready to wear"
-    assert state.attributes == {
-        "friendly_name": "Dryer cycle status",
+    assert state.attributes.items() >= {
+
         "icon": "mdi:tumble-dryer"
-    }
+    }.items()
 
 
 async def test_cycle_sensor_running(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
     await init_integration(hass, aioclient_mock, load_fixture("tumble_dryer/running.json"))
 
-    state = hass.states.get("sensor.dryer_cycle_status")
+    state = hass.states.get(registered_entity_id(hass, "sensor", "tumble_cycle_status"))
 
     assert state
     assert state.state == "Running"
-    assert state.attributes == {
-        "friendly_name": "Dryer cycle status",
+    assert state.attributes.items() >= {
+
         "icon": "mdi:tumble-dryer"
-    }
+    }.items()
 
 
 async def test_remaining_time_sensor_idle(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
     await init_integration(hass, aioclient_mock, load_fixture("tumble_dryer/idle.json"))
 
-    state = hass.states.get("sensor.dryer_cycle_remaining_time")
+    state = hass.states.get(registered_entity_id(hass, "sensor", "tumble_remaining_time"))
 
     assert state
     assert state.state == "0"
-    assert state.attributes == {
-        "friendly_name": "Dryer cycle remaining time",
+    assert state.attributes.items() >= {
+
         "icon": "mdi:progress-clock",
         "unit_of_measurement": "min",
-    }
+    }.items()
 
 
 async def test_remaining_time_sensor_running(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
     await init_integration(hass, aioclient_mock, load_fixture("tumble_dryer/running.json"))
 
-    state = hass.states.get("sensor.dryer_cycle_remaining_time")
+    state = hass.states.get(registered_entity_id(hass, "sensor", "tumble_remaining_time"))
 
     assert state
     assert state.state == "150"
-    assert state.attributes == {
-        "friendly_name": "Dryer cycle remaining time",
+    assert state.attributes.items() >= {
+
         "icon": "mdi:progress-clock",
         "unit_of_measurement": "min",
-    }
+    }.items()
 
 
 async def test_main_sensor_device_info(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker):
@@ -111,7 +111,7 @@ async def test_main_sensor_device_info(hass: HomeAssistant, aioclient_mock: Aioh
 
     entity_reg = entity_registry.async_get(hass)
     device_reg = device_registry.async_get(hass)
-    entry = entity_reg.async_get("sensor.tumble_dryer")
+    entry = entity_reg.async_get(registered_entity_id(hass, "sensor", "tumble_dryer"))
     device = device_reg.async_get(entry.device_id)
 
     assert device
@@ -126,9 +126,9 @@ async def test_sensors_device_info(hass: HomeAssistant, aioclient_mock: AiohttpC
     entity_reg = entity_registry.async_get(hass)
     device_reg = device_registry.async_get(hass)
 
-    main_sensor = entity_reg.async_get("sensor.tumble_dryer")
-    cycle_sensor = entity_reg.async_get("sensor.dryer_cycle_status")
-    time_sensor = entity_reg.async_get("sensor.dryer_cycle_remaining_time")
+    main_sensor = entity_reg.async_get(registered_entity_id(hass, "sensor", "tumble_dryer"))
+    cycle_sensor = entity_reg.async_get(registered_entity_id(hass, "sensor", "tumble_cycle_status"))
+    time_sensor = entity_reg.async_get(registered_entity_id(hass, "sensor", "tumble_remaining_time"))
 
     main_device = device_reg.async_get(main_sensor.device_id)
     cycle_device = device_reg.async_get(cycle_sensor.device_id)

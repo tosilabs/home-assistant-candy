@@ -2,6 +2,8 @@
 
 **Ky README është i shkruar në shqip**, i përshtatur për përdorim praktik në Home Assistant.
 
+**Versioni 1.5.0:** shiko [instalimin dhe ndryshimet](release-notes/1.5.0.md).
+
 > Ky projekt është një **fork/përshtatje** e integrimit origjinal të krijuar nga **@ofalvai**.  
 > Repo origjinale: https://github.com/ofalvai/home-assistant-candy
 
