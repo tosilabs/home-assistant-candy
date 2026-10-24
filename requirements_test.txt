@@ -1,5 +1,9 @@
-pytest-homeassistant-custom-component==0.13.114
+# Match transitive dependencies to the HA release used by this test plugin.
+-c https://raw.githubusercontent.com/home-assistant/core/2024.7.1/homeassistant/package_constraints.txt
+pytest-homeassistant-custom-component==0.13.145
+# HA 2024.7's ACME client still imports ComparableX509, removed in josepy 2.
+josepy==1.14.0
 
 # Component dependencies
-backoff~=2.0
-aiolimiter~=1.1
+backoff~=2.2.1
+aiolimiter~=1.2.1

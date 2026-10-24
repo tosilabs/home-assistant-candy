@@ -13,10 +13,12 @@ from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers.dispatcher import async_dispatcher_connect
+from homeassistant.helpers.dispatcher import async_dispatcher_connect, async_dispatcher_send
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
+
+from .wash_settings import PROGRAM_NAME, select_wash_program
 
 from .client.model import TumbleDryerStatus, WashingMachineStatus
 from .const import (
@@ -107,17 +109,20 @@ _VALID_TEMPS = [0, 20, 30, 40, 60, 90]
 _TEMP_LABELS = {0: "Cold", 20: "20°C", 30: "30°C", 40: "40°C", 60: "60°C", 90: "90°C"}
 _TEMP_FROM_LABEL = {v: k for k, v in _TEMP_LABELS.items()}
 
-_VALID_SPINS = [0, 400, 600, 800, 900, 1000, 1200, 1400, 1500]
+_VALID_SPINS = [0, 400, 600, 700, 800, 900, 1000, 1200, 1300, 1400, 1500]
 _SPIN_LABELS = {
-    0: "No spin", 400: "400 rpm", 600: "600 rpm", 800: "800 rpm",
+    0: "No spin", 400: "400 rpm", 600: "600 rpm", 700: "700 rpm", 800: "800 rpm",
     900: "900 rpm", 1000: "1000 rpm", 1200: "1200 rpm",
-    1400: "1400 rpm", 1500: "1500 rpm",
+    1300: "1300 rpm", 1400: "1400 rpm", 1500: "1500 rpm",
 }
 _SPIN_FROM_LABEL = {v: k for k, v in _SPIN_LABELS.items()}
 
 # All temperature / spin option lists (static, shown as-is)
-_ALL_TEMP_OPTIONS: list[str] = [_TEMP_LABELS[t] for t in _VALID_TEMPS]
-_ALL_SPIN_OPTIONS: list[str] = [_SPIN_LABELS[s] for s in _VALID_SPINS]
+_PROGRAM_DEFAULT = "Program default"
+_TEMP_FROM_LABEL[_PROGRAM_DEFAULT] = None
+_SPIN_FROM_LABEL[_PROGRAM_DEFAULT] = None
+_ALL_TEMP_OPTIONS: list[str] = [_PROGRAM_DEFAULT, *[_TEMP_LABELS[t] for t in _VALID_TEMPS]]
+_ALL_SPIN_OPTIONS: list[str] = [_PROGRAM_DEFAULT, *[_SPIN_LABELS[s] for s in _VALID_SPINS]]
 
 
 def _decoded_spin_rpm(prog) -> int | None:
@@ -139,7 +144,7 @@ def _spin_options_for_program(prog) -> list[str]:
     max_rpm = _decoded_spin_rpm(prog)
     if max_rpm is None:
         return _ALL_SPIN_OPTIONS
-    return [_SPIN_LABELS[s] for s in _VALID_SPINS if s <= max_rpm]
+    return [_PROGRAM_DEFAULT, *[_SPIN_LABELS[s] for s in _VALID_SPINS if s <= max_rpm]]
 
 
 def _temp_options_for_program(_prog) -> list[str]:
@@ -214,7 +219,8 @@ class _CandySelectBase(RestoreEntity, SelectEntity):
 
     @property
     def available(self) -> bool:
-        return self._coordinator.last_update_success
+        client = self._entry_data.get("client")
+        return self._coordinator.last_update_success and not (client and client.write_pending)
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -232,7 +238,8 @@ class _CandySelectBase(RestoreEntity, SelectEntity):
 # ===========================================================================
 
 class CandyWashCategorySelect(_CandySelectBase):
-    _attr_entity_category = EntityCategory.CONFIG
+    _attr_translation_key = "wm_category_select"
+    _attr_entity_category = None
 
     def __init__(self, config_id, entry_data, coordinator):
         super().__init__(config_id, entry_data, coordinator)
@@ -240,9 +247,6 @@ class CandyWashCategorySelect(_CandySelectBase):
 
     @property
     def unique_id(self): return UNIQUE_ID_WM_CATEGORY_SELECT.format(self.config_id)
-
-    @property
-    def name(self): return "Category"
 
     @property
     def options(self) -> list[str]:
@@ -262,6 +266,8 @@ class CandyWashCategorySelect(_CandySelectBase):
                          suggested_area=SUGGESTED_AREA_KITCHEN)
 
     async def async_select_option(self, option: str) -> None:
+        if option not in self.options:
+            raise HomeAssistantError(f"Invalid option: {option}")
         self._current = option
         self._entry_data[DATA_KEY_WM_CATEGORY] = option
         from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -274,6 +280,7 @@ class CandyWashCategorySelect(_CandySelectBase):
         if last and last.state in self.options:
             self._current = last.state
         self._entry_data[DATA_KEY_WM_CATEGORY] = self._current
+        async_dispatcher_send(self.hass, SIGNAL_WM_CATEGORY_CHANGED.format(self.config_id), self._current)
 
 
 # ===========================================================================
@@ -281,6 +288,7 @@ class CandyWashCategorySelect(_CandySelectBase):
 # ===========================================================================
 
 class CandyWashProgramSelect(_CandySelectBase):
+    _attr_translation_key = "wm_program_select"
 
     def __init__(self, config_id, entry_data, coordinator):
         super().__init__(config_id, entry_data, coordinator)
@@ -288,9 +296,6 @@ class CandyWashProgramSelect(_CandySelectBase):
 
     @property
     def unique_id(self): return UNIQUE_ID_WM_PROGRAM_SELECT_V2.format(self.config_id)
-
-    @property
-    def name(self): return "Program"
 
     @property
     def options(self) -> list[str]:
@@ -313,7 +318,11 @@ class CandyWashProgramSelect(_CandySelectBase):
 
     @property
     def extra_state_attributes(self) -> dict:
+        prog = WASHING_MACHINE_PROGRAMS_BY_NAME[self._current_option]
         return {
+            "program_number": prog.program,
+            "selector_position": prog.position,
+            "selection_only": True,
             "category_sq": WASHING_MACHINE_PROGRAM_META_SQ.get(self._current_option, {}).get("category", "Tjetër"),
             "profile_sq": WASHING_MACHINE_PROGRAM_META_SQ.get(self._current_option, {}).get("profile", "Profil i panjohur"),
             "description_sq": WASHING_MACHINE_PROGRAM_DESCRIPTIONS_SQ.get(
@@ -323,8 +332,10 @@ class CandyWashProgramSelect(_CandySelectBase):
         }
 
     async def async_select_option(self, option: str) -> None:
+        if option not in self.options:
+            raise HomeAssistantError(f"Invalid option: {option}")
+        select_wash_program(self._entry_data, option)
         self._current_option = option
-        self._entry_data["wm_program_name"] = option
         prog = WASHING_MACHINE_PROGRAMS_BY_NAME.get(option)
         if prog:
             from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -338,6 +349,9 @@ class CandyWashProgramSelect(_CandySelectBase):
             self._current_option = last.state
         elif self.options:
             self._current_option = self.options[0]
+        select_wash_program(self._entry_data, self._current_option)
+        async_dispatcher_send(self.hass, SIGNAL_WM_PROGRAM_CHANGED.format(self.config_id),
+                              WASHING_MACHINE_PROGRAMS_BY_NAME[self._current_option])
         self.async_on_remove(
             async_dispatcher_connect(self.hass, SIGNAL_WM_CATEGORY_CHANGED.format(self.config_id),
                                      self._on_category_changed)
@@ -347,7 +361,9 @@ class CandyWashProgramSelect(_CandySelectBase):
     def _on_category_changed(self, _cat: str) -> None:
         if self._current_option not in self.options and self.options:
             self._current_option = self.options[0]
-            self._entry_data["wm_program_name"] = self._current_option
+            select_wash_program(self._entry_data, self._current_option)
+            async_dispatcher_send(self.hass, SIGNAL_WM_PROGRAM_CHANGED.format(self.config_id),
+                                  WASHING_MACHINE_PROGRAMS_BY_NAME[self._current_option])
         self.async_write_ha_state()
 
 
@@ -356,6 +372,7 @@ class CandyWashProgramSelect(_CandySelectBase):
 # ===========================================================================
 
 class CandyWashTemperatureSelect(_CandySelectBase):
+    _attr_translation_key = "wm_temperature"
     """Temperature select — shows ALL valid Candy temps (0–90°C).
     The program default is pre-selected when user changes program,
     but the user can override to any value freely.
@@ -367,9 +384,6 @@ class CandyWashTemperatureSelect(_CandySelectBase):
 
     @property
     def unique_id(self): return UNIQUE_ID_WM_TEMP_SELECT.format(self.config_id)
-
-    @property
-    def name(self): return "Temperature"
 
     @property
     def options(self) -> list[str]:
@@ -388,6 +402,8 @@ class CandyWashTemperatureSelect(_CandySelectBase):
                          suggested_area=SUGGESTED_AREA_KITCHEN)
 
     async def async_select_option(self, option: str) -> None:
+        if option not in self.options:
+            raise HomeAssistantError(f"Invalid option: {option}")
         if option not in _TEMP_FROM_LABEL:
             raise HomeAssistantError(f"Invalid temperature option: {option}")
         self._current = option
@@ -396,10 +412,9 @@ class CandyWashTemperatureSelect(_CandySelectBase):
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        last = await self.async_get_last_state()
-        if last and last.state in _TEMP_FROM_LABEL:
-            self._current = last.state
-            self._entry_data[DATA_KEY_WM_TEMP] = _TEMP_FROM_LABEL[self._current]
+        prog = WASHING_MACHINE_PROGRAMS_BY_NAME.get(self._entry_data.get(PROGRAM_NAME))
+        if prog is not None:
+            self._on_program_changed(prog)
         self.async_on_remove(
             async_dispatcher_connect(self.hass, SIGNAL_WM_PROGRAM_CHANGED.format(self.config_id),
                                      self._on_program_changed)
@@ -415,9 +430,9 @@ class CandyWashTemperatureSelect(_CandySelectBase):
         elif temp_val == 0:
             label = "Cold"
         else:
-            label = "40°C"
+            label = _PROGRAM_DEFAULT
         self._current = label
-        self._entry_data[DATA_KEY_WM_TEMP] = _TEMP_FROM_LABEL.get(label, 40)
+        self._entry_data[DATA_KEY_WM_TEMP] = _TEMP_FROM_LABEL[label]
         self.async_write_ha_state()
 
 
@@ -426,6 +441,7 @@ class CandyWashTemperatureSelect(_CandySelectBase):
 # ===========================================================================
 
 class CandyWashSpinSelect(_CandySelectBase):
+    _attr_translation_key = "wm_spin_speed"
     """Spin speed select.
 
     Shows all speeds up to the program's max (spin_target decoded from rpm//100).
@@ -438,9 +454,6 @@ class CandyWashSpinSelect(_CandySelectBase):
 
     @property
     def unique_id(self): return UNIQUE_ID_WM_SPIN_SELECT.format(self.config_id)
-
-    @property
-    def name(self): return "Spin speed"
 
     @property
     def options(self) -> list[str]:
@@ -464,19 +477,20 @@ class CandyWashSpinSelect(_CandySelectBase):
                          suggested_area=SUGGESTED_AREA_KITCHEN)
 
     async def async_select_option(self, option: str) -> None:
+        if option not in self.options:
+            raise HomeAssistantError(f"Invalid option: {option}")
         if option not in _SPIN_FROM_LABEL:
             raise HomeAssistantError(f"Invalid spin option: {option}")
         self._current = option
         rpm = _SPIN_FROM_LABEL[option]
-        self._entry_data[DATA_KEY_WM_SPIN] = rpm // 100  # encode back to Candy format
+        self._entry_data[DATA_KEY_WM_SPIN] = None if rpm is None else rpm // 100  # encode back to Candy format
         self.async_write_ha_state()
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        last = await self.async_get_last_state()
-        if last and last.state in _SPIN_FROM_LABEL:
-            self._current = last.state
-            self._entry_data[DATA_KEY_WM_SPIN] = _SPIN_FROM_LABEL[self._current] // 100
+        prog = WASHING_MACHINE_PROGRAMS_BY_NAME.get(self._entry_data.get(PROGRAM_NAME))
+        if prog is not None:
+            self._on_program_changed(prog)
         self.async_on_remove(
             async_dispatcher_connect(self.hass, SIGNAL_WM_PROGRAM_CHANGED.format(self.config_id),
                                      self._on_program_changed)
@@ -490,13 +504,14 @@ class CandyWashSpinSelect(_CandySelectBase):
             nearest = min(_VALID_SPINS, key=lambda s: abs(s - rpm))
             label = _SPIN_LABELS.get(nearest, "1000 rpm")
         else:
-            label = "1000 rpm"
+            label = _PROGRAM_DEFAULT
         # Clamp to available options for this program
         opts = _spin_options_for_program(prog)
         if opts and label not in opts:
             label = opts[-1]
         self._current = label
-        self._entry_data[DATA_KEY_WM_SPIN] = _SPIN_FROM_LABEL.get(label, 1000) // 100
+        rpm = _SPIN_FROM_LABEL[label]
+        self._entry_data[DATA_KEY_WM_SPIN] = None if rpm is None else rpm // 100
         self.async_write_ha_state()
 
 
@@ -505,6 +520,7 @@ class CandyWashSpinSelect(_CandySelectBase):
 # ===========================================================================
 
 class CandyWashSoilLevelSelect(_CandySelectBase):
+    _attr_translation_key = "wm_soil_level"
 
     def __init__(self, config_id, entry_data, coordinator):
         super().__init__(config_id, entry_data, coordinator)
@@ -512,9 +528,6 @@ class CandyWashSoilLevelSelect(_CandySelectBase):
 
     @property
     def unique_id(self): return UNIQUE_ID_WM_SOIL.format(self.config_id)
-
-    @property
-    def name(self): return "Soil level"
 
     @property
     def options(self): return _SOIL_OPTIONS
@@ -532,6 +545,8 @@ class CandyWashSoilLevelSelect(_CandySelectBase):
                          suggested_area=SUGGESTED_AREA_KITCHEN)
 
     async def async_select_option(self, option: str) -> None:
+        if option not in self.options:
+            raise HomeAssistantError(f"Invalid option: {option}")
         if option not in _SOIL_TO_VALUE:
             raise HomeAssistantError(f"Invalid soil option: {option}")
         self._current = option
@@ -540,10 +555,9 @@ class CandyWashSoilLevelSelect(_CandySelectBase):
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        last = await self.async_get_last_state()
-        if last and last.state in _SOIL_OPTIONS:
-            self._current = last.state
-            self._entry_data[DATA_KEY_WM_SOIL] = _SOIL_TO_VALUE[self._current]
+        prog = WASHING_MACHINE_PROGRAMS_BY_NAME.get(self._entry_data.get(PROGRAM_NAME))
+        if prog is not None:
+            self._on_program_changed(prog)
         self.async_on_remove(
             async_dispatcher_connect(self.hass, SIGNAL_WM_PROGRAM_CHANGED.format(self.config_id),
                                      self._on_program_changed)
@@ -562,6 +576,7 @@ class CandyWashSoilLevelSelect(_CandySelectBase):
 # ===========================================================================
 
 class CandyWashSteamSelect(_CandySelectBase):
+    _attr_translation_key = "wm_steam"
 
     def __init__(self, config_id, entry_data, coordinator):
         super().__init__(config_id, entry_data, coordinator)
@@ -569,9 +584,6 @@ class CandyWashSteamSelect(_CandySelectBase):
 
     @property
     def unique_id(self): return UNIQUE_ID_WM_STEAM.format(self.config_id)
-
-    @property
-    def name(self): return "Steam"
 
     @property
     def options(self): return _STEAM_OPTIONS
@@ -589,6 +601,8 @@ class CandyWashSteamSelect(_CandySelectBase):
                          suggested_area=SUGGESTED_AREA_KITCHEN)
 
     async def async_select_option(self, option: str) -> None:
+        if option not in self.options:
+            raise HomeAssistantError(f"Invalid option: {option}")
         if option not in _STEAM_TO_VALUE:
             raise HomeAssistantError(f"Invalid steam option: {option}")
         self._current = option
@@ -597,10 +611,9 @@ class CandyWashSteamSelect(_CandySelectBase):
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        last = await self.async_get_last_state()
-        if last and last.state in _STEAM_OPTIONS:
-            self._current = last.state
-            self._entry_data[DATA_KEY_WM_STEAM] = _STEAM_TO_VALUE[self._current]
+        prog = WASHING_MACHINE_PROGRAMS_BY_NAME.get(self._entry_data.get(PROGRAM_NAME))
+        if prog is not None:
+            self._on_program_changed(prog)
         self.async_on_remove(
             async_dispatcher_connect(self.hass, SIGNAL_WM_PROGRAM_CHANGED.format(self.config_id),
                                      self._on_program_changed)
@@ -619,6 +632,7 @@ class CandyWashSteamSelect(_CandySelectBase):
 # ===========================================================================
 
 class CandyWashRinseSelect(_CandySelectBase):
+    _attr_translation_key = "wm_rinse"
 
     def __init__(self, config_id, entry_data, coordinator):
         super().__init__(config_id, entry_data, coordinator)
@@ -626,9 +640,6 @@ class CandyWashRinseSelect(_CandySelectBase):
 
     @property
     def unique_id(self): return UNIQUE_ID_WM_RINSE.format(self.config_id)
-
-    @property
-    def name(self): return "Rinse"
 
     @property
     def options(self): return _RINSE_OPTIONS
@@ -646,6 +657,8 @@ class CandyWashRinseSelect(_CandySelectBase):
                          suggested_area=SUGGESTED_AREA_KITCHEN)
 
     async def async_select_option(self, option: str) -> None:
+        if option not in self.options:
+            raise HomeAssistantError(f"Invalid option: {option}")
         if option not in _RINSE_TO_VALUE:
             raise HomeAssistantError(f"Invalid rinse option: {option}")
         self._current = option
@@ -654,10 +667,9 @@ class CandyWashRinseSelect(_CandySelectBase):
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        last = await self.async_get_last_state()
-        if last and last.state in _RINSE_OPTIONS:
-            self._current = last.state
-            self._entry_data[DATA_KEY_WM_RINSE] = _RINSE_TO_VALUE[self._current]
+        prog = WASHING_MACHINE_PROGRAMS_BY_NAME.get(self._entry_data.get(PROGRAM_NAME))
+        if prog is not None:
+            self._on_program_changed(prog)
         self.async_on_remove(
             async_dispatcher_connect(self.hass, SIGNAL_WM_PROGRAM_CHANGED.format(self.config_id),
                                      self._on_program_changed)
@@ -665,8 +677,8 @@ class CandyWashRinseSelect(_CandySelectBase):
 
     @callback
     def _on_program_changed(self, prog) -> None:
-        self._current = "Normal"
-        self._entry_data[DATA_KEY_WM_RINSE] = 0
+        count = self._entry_data.get(DATA_KEY_WM_RINSE, 0)
+        self._current = _RINSE_FROM_VALUE[count]
         self.async_write_ha_state()
 
 
@@ -675,7 +687,8 @@ class CandyWashRinseSelect(_CandySelectBase):
 # ===========================================================================
 
 class CandyTumbleCategorySelect(_CandySelectBase):
-    _attr_entity_category = EntityCategory.CONFIG
+    _attr_translation_key = "td_category_select"
+    _attr_entity_category = None
 
     def __init__(self, config_id, entry_data, coordinator):
         super().__init__(config_id, entry_data, coordinator)
@@ -683,9 +696,6 @@ class CandyTumbleCategorySelect(_CandySelectBase):
 
     @property
     def unique_id(self): return f"{self.config_id}-s01_td_category"
-
-    @property
-    def name(self): return "Category"
 
     @property
     def options(self) -> list[str]:
@@ -705,6 +715,8 @@ class CandyTumbleCategorySelect(_CandySelectBase):
                          suggested_area=SUGGESTED_AREA_BATHROOM)
 
     async def async_select_option(self, option: str) -> None:
+        if option not in self.options:
+            raise HomeAssistantError(f"Invalid option: {option}")
         self._current = option
         self._entry_data[DATA_KEY_TD_CATEGORY] = option
         from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -724,6 +736,7 @@ class CandyTumbleCategorySelect(_CandySelectBase):
 # ===========================================================================
 
 class CandyTumbleProgramSelect(_CandySelectBase):
+    _attr_translation_key = "td_program_select"
 
     def __init__(self, config_id, entry_data, coordinator):
         super().__init__(config_id, entry_data, coordinator)
@@ -731,9 +744,6 @@ class CandyTumbleProgramSelect(_CandySelectBase):
 
     @property
     def unique_id(self): return UNIQUE_ID_TD_PROGRAM_SELECT.format(self.config_id)
-
-    @property
-    def name(self): return "Program"
 
     @property
     def options(self) -> list[str]:
@@ -766,6 +776,8 @@ class CandyTumbleProgramSelect(_CandySelectBase):
         }
 
     async def async_select_option(self, option: str) -> None:
+        if option not in self.options:
+            raise HomeAssistantError(f"Invalid option: {option}")
         self._current_option = option
         from homeassistant.helpers.dispatcher import async_dispatcher_send
         from .programs import TUMBLE_DRYER_PROGRAMS_BY_NAME
@@ -798,7 +810,8 @@ class CandyTumbleProgramSelect(_CandySelectBase):
 # ===========================================================================
 
 class CandyTumbleDryLevelSelect(_CandySelectBase):
-    _attr_entity_category = EntityCategory.CONFIG
+    _attr_translation_key = "td_dry_level_select"
+    _attr_entity_category = None
 
     def __init__(self, config_id, entry_data, coordinator):
         super().__init__(config_id, entry_data, coordinator)
@@ -806,9 +819,6 @@ class CandyTumbleDryLevelSelect(_CandySelectBase):
 
     @property
     def unique_id(self): return UNIQUE_ID_TD_DRY_LEVEL_SELECT.format(self.config_id)
-
-    @property
-    def name(self): return "Drying level"
 
     @property
     def options(self): return _TD_DRY_LEVEL_OPTIONS
@@ -826,6 +836,8 @@ class CandyTumbleDryLevelSelect(_CandySelectBase):
                          suggested_area=SUGGESTED_AREA_BATHROOM)
 
     async def async_select_option(self, option: str) -> None:
+        if option not in self.options:
+            raise HomeAssistantError(f"Invalid option: {option}")
         if option not in _TD_DRY_LEVEL_TO_VALUE:
             raise HomeAssistantError(f"Invalid dry level option: {option}")
         self._current = option

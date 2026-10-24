@@ -1,21 +1,91 @@
 {
-    "config": {
-        "abort": {
-            "already_configured": "Device is already configured"
-        },
-        "error": {
-            "unknown": "Unexpected error",
-            "detect_encryption": "Failed to detect encryption, check logs"
-        },
-        "step": {
-            "user": {
-                "data": {
-                    "ip_address": "Device IP address",
-                    "password": "Encryption key",
-                    "use_encryption": "Use encryption key"
-                }
-            }
-        }
+  "config": {
+    "abort": {
+      "already_configured": "Device is already configured"
     },
-    "title": "Candy"
+    "error": {
+      "unknown": "Unexpected error",
+      "detect_encryption": "Could not detect the device or encryption key. Check the IP address and network connection."
+    },
+    "step": {
+      "user": {
+        "data": {
+          "ip_address": "Device IP address",
+          "password": "Encryption key",
+          "use_encryption": "Use encryption key"
+        }
+      }
+    }
+  },
+  "title": "Candy",
+  "entity": {
+    "select": {
+      "wm_program_select": {
+        "name": "Selected program"
+      },
+      "wm_category_select": {
+        "name": "Program category"
+      },
+      "wm_temperature": {
+        "name": "Target temperature"
+      },
+      "wm_spin_speed": {
+        "name": "Target spin speed"
+      },
+      "wm_soil_level": {
+        "name": "Soil level"
+      },
+      "wm_steam": {
+        "name": "Steam"
+      },
+      "wm_rinse": {
+        "name": "Extra rinses"
+      },
+      "td_program_select": {
+        "name": "Selected program"
+      },
+      "td_category_select": {
+        "name": "Program category"
+      },
+      "td_dry_level_select": {
+        "name": "Drying level"
+      }
+    },
+    "button": {
+      "wash_start_button": {
+        "name": "Start"
+      },
+      "wash_pause_button": {
+        "name": "Pause"
+      },
+      "wash_resume_button": {
+        "name": "Resume"
+      },
+      "wash_stop_button": {
+        "name": "Stop"
+      },
+      "tumble_start_button": {
+        "name": "Start"
+      },
+      "tumble_pause_button": {
+        "name": "Pause"
+      },
+      "tumble_resume_button": {
+        "name": "Resume"
+      },
+      "tumble_stop_button": {
+        "name": "Stop"
+      }
+    },
+    "sensor": {
+      "wm_program_sensor": {
+        "name": "Reported program"
+      }
+    },
+    "binary_sensor": {
+      "wm_remote_control": {
+        "name": "Remote control"
+      }
+    }
+  }
 }

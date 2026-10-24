@@ -1,0 +1,91 @@
+# Karta standarde HA; nuk kërkon Mushroom.
+# Krahaso ID-të me entitetet te Settings > Devices & Services > Candy.
+# Ruaj ID-të ekzistuese; emri i përkthyer nuk përcakton entity_id.
+title: Candy Laundry
+views:
+  - title: Lavanderia
+    path: candy-laundry
+    icon: mdi:washing-machine
+    cards:
+      - type: markdown
+        title: Makina larëse
+        content: >-
+          {% set s = states('sensor.washing_machine_machine_status') %}
+          {% if s in ['unknown', 'unavailable'] %}
+          **Pajisja nuk është e disponueshme.** Kontrollo nëse është ndezur dhe në rrjet.
+          {% elif s == 'Running' %}**Duke larë**
+          {% elif s == 'Paused' %}**Në pauzë**
+          {% elif s == 'Finished' %}**Larja përfundoi**
+          {% elif s == 'Error' %}**Makina raporton gabim**
+          {% else %}**Gjendja:** {{ s }}{% endif %}
+
+          Zgjedhja e programit përgatit cilësimet. Shtyp **Fillo** për ta nisur.
+      - type: entities
+        title: 1 · Zgjidh programin
+        show_header_toggle: false
+        entities:
+          - entity: select.washing_machine_category
+            name: Kategoria
+          - entity: select.washing_machine_program
+            name: Programi i zgjedhur
+      - type: markdown
+        title: Për çfarë shërben ky program?
+        content: >-
+          {{ state_attr('select.washing_machine_program', 'description_sq') or 'Zgjidh një program nga lista.' }}
+
+          **Profili:** {{ state_attr('select.washing_machine_program', 'profile_sq') or 'Sipas programit' }}
+
+          Ndryshimi i programit rivendos cilësimet e tij. Përshtati pasi të kesh zgjedhur programin.
+      - type: entities
+        title: 2 · Përshtat cilësimet
+        show_header_toggle: false
+        entities:
+          - entity: select.washing_machine_temperature
+            name: Temperatura e synuar
+          - entity: select.washing_machine_spin_speed
+            name: Centrifuga e synuar
+          - entity: select.washing_machine_soil_level
+            name: Niveli i papastërtisë
+          - entity: select.washing_machine_steam
+            name: Avulli
+          - entity: select.washing_machine_rinse
+            name: Shpëlarje shtesë
+      - type: entities
+        title: 3 · Kontrollo makinën
+        show_header_toggle: false
+        entities:
+          - entity: binary_sensor.washing_machine_remote_control
+            name: Makina pranon komanda nga rrjeti
+          - type: buttons
+            entities:
+              - entity: button.washing_machine_start_washing_machine
+                name: Fillo
+              - entity: button.washing_machine_pause_washing_machine
+                name: Pauzë
+              - entity: button.washing_machine_resume_washing_machine
+                name: Vazhdo
+              - entity: button.washing_machine_stop_washing_machine
+                name: Ndalo
+      - type: markdown
+        content: >-
+          Nëse butonat janë të padisponueshëm, kontrollo gjendjen e makinës dhe
+          aktivizo kontrollin nga rrjeti në panelin fizik. Pas komandës, prit disa
+          sekonda për përditësimin e gjendjes.
+      - type: entities
+        title: Gjendja reale e makinës
+        show_header_toggle: false
+        entities:
+          - entity: sensor.washing_machine_machine_status
+            name: Gjendja
+          - entity: sensor.washing_machine_wash_cycle_status
+            name: Faza e ciklit
+          - entity: sensor.washing_machine_wash_cycle_remaining_time
+            name: Minuta të mbetura
+          - entity: sensor.washing_machine_temperature
+            name: Temperatura e raportuar
+          - entity: sensor.washing_machine_spin
+            name: Centrifuga e raportuar
+          - entity: sensor.washing_machine_program
+            name: Identifikuesi i programit nga makina
+          - entity: sensor.washing_machine_error
+            name: Gabimi i raportuar
